@@ -1,10 +1,10 @@
-import axios from 'axios'
+const axios = require('axios')
 
 /**
  * Vercel Serverless Function for N8N Proxy
  * Handles both webhook triggers and N8N API calls
  */
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
