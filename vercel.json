@@ -29,7 +29,11 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization, X-N8N-API-KEY"
+          "value": "Content-Type, Authorization, X-N8N-API-KEY, X-N8N-BASE-URL, X-Webhook-URL"
+        },
+        {
+          "key": "Access-Control-Allow-Credentials",
+          "value": "true"
         }
       ]
     },
