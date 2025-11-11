@@ -110,13 +110,17 @@ async function handleApiProxy(req, res) {
 
     // Extract the path after /api/n8n-proxy/ and preserve query string
     const pathMatch = req.url.match(/\/api\/n8n-proxy(\/.*)/)
-    const path = pathMatch ? pathMatch[1].split('?')[0] : '/api/v1/workflows'
+    const fullPath = pathMatch ? pathMatch[1] : '/api/v1/workflows'
+
+    // Parse query string manually (Vercel doesn't provide req.query)
+    const [path, queryString] = fullPath.split('?')
     const url = `${n8nBaseUrl}${path}`
 
     // Convert string query params to proper types for N8N
     const params = {}
-    if (req.query) {
-      for (const [key, value] of Object.entries(req.query)) {
+    if (queryString) {
+      const searchParams = new URLSearchParams(queryString)
+      for (const [key, value] of searchParams.entries()) {
         // Convert numeric strings to numbers
         if (key === 'limit' || key === 'offset') {
           params[key] = parseInt(value, 10)
