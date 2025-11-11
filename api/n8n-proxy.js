@@ -2,170 +2,114 @@ const axios = require('axios')
 
 /**
  * Vercel Serverless Function for N8N Proxy
- * Handles both webhook triggers and N8N API calls
  */
-module.exports = async function handler(req, res) {
-  // Enable CORS
+module.exports = async (req, res) => {
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-N8N-API-KEY, X-N8N-BASE-URL, X-Webhook-URL')
   res.setHeader('Access-Control-Allow-Credentials', 'true')
 
-  // Handle preflight OPTIONS request
+  // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
   }
 
   try {
-    // Determine if this is a webhook trigger or API proxy call
-    const isWebhook = req.url === '/api/n8n-proxy' || req.url.startsWith('/api/n8n-proxy?')
+    // Get headers (case-insensitive)
+    const headers = req.headers || {}
+    const n8nApiKey = headers['x-n8n-api-key'] || headers['X-N8N-API-KEY']
+    const n8nBaseUrl = headers['x-n8n-base-url'] || headers['X-N8N-BASE-URL']
+    const webhookUrl = headers['x-webhook-url'] || headers['X-Webhook-URL']
 
-    if (isWebhook && req.method === 'POST') {
-      // Handle N8N Webhook Proxy
-      return await handleWebhookProxy(req, res)
-    } else {
-      // Handle N8N API Proxy
-      return await handleApiProxy(req, res)
-    }
-  } catch (error) {
-    console.error('Handler error:', error)
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: error.message
+    console.log('[N8N Proxy] Request:', {
+      method: req.method,
+      url: req.url,
+      hasApiKey: !!n8nApiKey,
+      hasBaseUrl: !!n8nBaseUrl,
+      hasWebhookUrl: !!webhookUrl
     })
-  }
-}
 
-/**
- * Handle N8N webhook trigger proxy
- */
-async function handleWebhookProxy(req, res) {
-  try {
-    const webhookUrl = req.headers['x-webhook-url']
+    // Handle webhook proxy
+    if (webhookUrl && req.method === 'POST') {
+      console.log('[N8N Proxy] Webhookproxy:', webhookUrl)
 
-    if (!webhookUrl) {
-      return res.status(400).json({
-        error: 'Missing X-Webhook-URL header'
+      const response = await axios({
+        method: 'POST',
+        url: webhookUrl,
+        headers: { 'Content-Type': 'application/json' },
+        data: req.body || {},
+        timeout: 30000
       })
+
+      console.log('[N8N Proxy] Webhook success:', response.status)
+      return res.status(response.status).json(response.data)
     }
 
-    console.log(`🔗 Proxying webhook to: ${webhookUrl}`)
-
-    const response = await axios({
-      method: 'POST',
-      url: webhookUrl,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      data: req.body,
-      timeout: 30000,
-    })
-
-    console.log('✅ Webhook triggered successfully')
-    return res.status(response.status).json(response.data)
-  } catch (error) {
-    console.error('❌ Webhook proxy error:', error.response?.status, error.response?.data || error.message)
-
-    if (axios.isAxiosError(error)) {
-      return res.status(error.response?.status || 500).json({
-        error: error.response?.data || error.message
-      })
-    } else {
-      return res.status(500).json({ error: 'Internal webhook proxy error' })
-    }
-  }
-}
-
-/**
- * Handle N8N API proxy
- */
-async function handleApiProxy(req, res) {
-  try {
-    // Get headers case-insensitively
-    const getHeader = (name) => {
-      const lowerName = name.toLowerCase()
-      return req.headers[lowerName] || req.headers[name]
-    }
-
-    const n8nApiKey = getHeader('x-n8n-api-key') || getHeader('X-N8N-API-KEY')
-    const n8nBaseUrl = getHeader('x-n8n-base-url') || getHeader('X-N8N-BASE-URL')
-
-    console.log('🔍 Debug - Headers received:', {
-      apiKeyPresent: !!n8nApiKey,
-      baseUrlPresent: !!n8nBaseUrl,
-      baseUrl: n8nBaseUrl,
-      allHeaders: Object.keys(req.headers)
-    })
-
+    // Handle API proxy
     if (!n8nApiKey || !n8nBaseUrl) {
+      console.error('[N8N Proxy] Missing credentials')
       return res.status(400).json({
         error: 'Missing X-N8N-API-KEY or X-N8N-BASE-URL header',
-        debug: {
-          headers: Object.keys(req.headers),
-          apiKeyPresent: !!n8nApiKey,
-          baseUrlPresent: !!n8nBaseUrl
+        received: {
+          hasApiKey: !!n8nApiKey,
+          hasBaseUrl: !!n8nBaseUrl
         }
       })
     }
 
-    // Extract the path after /api/n8n-proxy/ and preserve query string
-    const pathMatch = req.url.match(/\/api\/n8n-proxy(\/.*)/)
-    const fullPath = pathMatch ? pathMatch[1] : '/api/v1/workflows'
-
-    // Parse query string manually (Vercel doesn't provide req.query)
+    // Extract path and query from URL
+    const urlMatch = req.url.match(/\/api\/n8n-proxy(\/.*)/)
+    const fullPath = urlMatch ? urlMatch[1] : '/api/v1/workflows'
     const [path, queryString] = fullPath.split('?')
-    const url = `${n8nBaseUrl}${path}`
 
-    // Convert string query params to proper types for N8N
+    // Parse query parameters
     const params = {}
     if (queryString) {
       const searchParams = new URLSearchParams(queryString)
-      for (const [key, value] of searchParams.entries()) {
-        // Convert numeric strings to numbers
-        if (key === 'limit' || key === 'offset') {
-          params[key] = parseInt(value, 10)
-        } else {
-          params[key] = value
-        }
-      }
+      searchParams.forEach((value, key) => {
+        // Convert limit/offset to numbers
+        params[key] = (key === 'limit' || key === 'offset') ? parseInt(value, 10) : value
+      })
     }
 
-    console.log(`🔗 Proxying ${req.method} ${url}`, { params })
+    const targetUrl = `${n8nBaseUrl}${path}`
+    console.log('[N8N Proxy] API proxy:', targetUrl, params)
 
     const response = await axios({
       method: req.method,
-      url: url,
+      url: targetUrl,
       headers: {
         'X-N8N-API-KEY': n8nApiKey,
         'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      data: req.body,
+      data: req.body || undefined,
       params: params,
+      timeout: 30000
     })
 
-    console.log(`✅ Proxy successful: ${response.status}`)
+    console.log('[N8N Proxy] API success:', response.status)
     return res.status(response.status).json(response.data)
+
   } catch (error) {
-    console.error('❌ API proxy error:', {
+    console.error('[N8N Proxy] Error:', {
+      message: error.message,
       status: error.response?.status,
       statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message,
-      code: error.code
+      data: error.response?.data
     })
 
-    if (axios.isAxiosError(error)) {
-      return res.status(error.response?.status || 500).json({
-        error: error.response?.data || error.message,
-        details: {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          message: error.message
-        }
+    if (axios.isAxiosError(error) && error.response) {
+      return res.status(error.response.status).json({
+        error: error.response.data || error.message,
+        status: error.response.status
       })
-    } else {
-      return res.status(500).json({ error: 'Internal proxy error', message: error.message })
     }
+
+    return res.status(500).json({
+      error: 'Proxy error',
+      message: error.message
+    })
   }
 }
