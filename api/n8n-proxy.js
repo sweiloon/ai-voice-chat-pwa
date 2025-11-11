@@ -81,12 +81,30 @@ async function handleWebhookProxy(req, res) {
  */
 async function handleApiProxy(req, res) {
   try {
-    const n8nApiKey = req.headers['x-n8n-api-key']
-    const n8nBaseUrl = req.headers['x-n8n-base-url']
+    // Get headers case-insensitively
+    const getHeader = (name) => {
+      const lowerName = name.toLowerCase()
+      return req.headers[lowerName] || req.headers[name]
+    }
+
+    const n8nApiKey = getHeader('x-n8n-api-key') || getHeader('X-N8N-API-KEY')
+    const n8nBaseUrl = getHeader('x-n8n-base-url') || getHeader('X-N8N-BASE-URL')
+
+    console.log('🔍 Debug - Headers received:', {
+      apiKeyPresent: !!n8nApiKey,
+      baseUrlPresent: !!n8nBaseUrl,
+      baseUrl: n8nBaseUrl,
+      allHeaders: Object.keys(req.headers)
+    })
 
     if (!n8nApiKey || !n8nBaseUrl) {
       return res.status(400).json({
-        error: 'Missing X-N8N-API-KEY or X-N8N-BASE-URL header'
+        error: 'Missing X-N8N-API-KEY or X-N8N-BASE-URL header',
+        debug: {
+          headers: Object.keys(req.headers),
+          apiKeyPresent: !!n8nApiKey,
+          baseUrlPresent: !!n8nBaseUrl
+        }
       })
     }
 
@@ -108,7 +126,7 @@ async function handleApiProxy(req, res) {
       }
     }
 
-    console.log(`Proxying ${req.method} ${url}`, params)
+    console.log(`🔗 Proxying ${req.method} ${url}`, { params })
 
     const response = await axios({
       method: req.method,
@@ -122,16 +140,28 @@ async function handleApiProxy(req, res) {
       params: params,
     })
 
+    console.log(`✅ Proxy successful: ${response.status}`)
     return res.status(response.status).json(response.data)
   } catch (error) {
-    console.error('API proxy error:', error.response?.status, error.response?.data || error.message)
+    console.error('❌ API proxy error:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message,
+      code: error.code
+    })
 
     if (axios.isAxiosError(error)) {
       return res.status(error.response?.status || 500).json({
-        error: error.response?.data || error.message
+        error: error.response?.data || error.message,
+        details: {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          message: error.message
+        }
       })
     } else {
-      return res.status(500).json({ error: 'Internal proxy error' })
+      return res.status(500).json({ error: 'Internal proxy error', message: error.message })
     }
   }
 }
