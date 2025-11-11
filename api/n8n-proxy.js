@@ -2,6 +2,7 @@ import axios from 'axios'
 
 /**
  * Vercel Serverless Function for N8N Proxy
+ * Last deployed: 2025-11-12 - Force rebuild to clear Vercel cache
  */
 export default async (req, res) => {
   // CORS headers
