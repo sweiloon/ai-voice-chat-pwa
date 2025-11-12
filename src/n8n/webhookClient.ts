@@ -43,16 +43,12 @@ export const triggerWebhook = async (
       console.log('🔗 [PROXY] Triggering webhook via proxy')
       console.log('📦 Payload:', payload)
 
-      // Route through proxy
-      const response = await axios.post('/api/n8n-proxy', {
-        method: 'POST',
-        url: webhookUrl,
-        data: payload,
+      // Route through proxy - send webhook URL in header, payload in body
+      const response = await axios.post('/api/n8n-proxy', payload, {
         headers: {
           'Content-Type': 'application/json',
-          'X-N8N-API-KEY': options?.apiKey || '',
+          'X-Webhook-URL': webhookUrl,
         },
-      }, {
         timeout: 30000,
       })
 
