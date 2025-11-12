@@ -10,7 +10,6 @@ import { useSettingsStore } from '@/store/settings'
 export const ChatView = () => {
   const { activeSessionId, messages, ensureMessages } = useSessionStore()
   const settings = useSettingsStore()
-  const containerRef = useRef<HTMLDivElement | null>(null)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
   const lastSpokenRef = useRef<string>('')
 
@@ -32,7 +31,7 @@ export const ChatView = () => {
   const currentMessages = messages[activeSessionId ?? ''] ?? []
 
   useEffect(() => {
-    containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' })
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
   }, [currentMessages])
 
   const preferredVoice = useMemo(() => {
@@ -49,7 +48,7 @@ export const ChatView = () => {
   }, [currentMessages, preferredVoice, settings.playAssistantAudio, settings.ttsRate])
 
   return (
-    <div ref={containerRef} className="space-y-3 md:space-y-4 p-3 md:p-4 bg-gradient-to-b from-background to-secondary/5 min-h-full">
+    <div className="space-y-3 md:space-y-4 p-3 md:p-4 bg-gradient-to-b from-background to-secondary/5 min-h-full">
       {!currentMessages.length ? (
         <div className="flex flex-col items-center justify-center gap-3 md:gap-4 text-center text-muted-foreground py-8 md:py-12 min-h-full">
           <div className="rounded-full border-2 border-dashed border-border/50 p-6 md:p-8 bg-primary/5">

@@ -23,7 +23,6 @@ export const WorkflowChat = () => {
   const [sending, setSending] = useState(false)
 
   const recognitionRef = useRef<SpeechRecognition | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
   const supported = Boolean(getSpeechRecognition())
 
   useEffect(() => {
@@ -31,7 +30,7 @@ export const WorkflowChat = () => {
   }, [])
 
   useEffect(() => {
-    containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' })
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
   }, [workflowMessages])
 
   const startVoiceInput = () => {
@@ -119,12 +118,9 @@ export const WorkflowChat = () => {
         </div>
       </header>
 
-      {/* Scrollable container with sticky input at bottom */}
-      <div className="flex-1 overflow-hidden pt-[48px] md:pt-[56px]">
-        <div className="h-full flex flex-col">
-          {/* Scrollable Messages Area */}
-          <div className="flex-1 overflow-y-auto">
-            <div ref={containerRef} className="h-full space-y-3 md:space-y-4 p-3 md:p-4 bg-gradient-to-b from-background to-secondary/5">
+      {/* Scrollable Messages Area with padding for fixed header and fixed input */}
+      <div className="flex-1 overflow-y-auto pt-[48px] md:pt-[56px] pb-[calc(220px+env(safe-area-inset-bottom))] md:pb-[calc(240px+env(safe-area-inset-bottom))]">
+        <div className="space-y-3 md:space-y-4 p-3 md:p-4 bg-gradient-to-b from-background to-secondary/5 min-h-full">
         {workflowMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 md:gap-4 text-center text-muted-foreground py-8 md:py-12 min-h-full">
             <div className="rounded-full border-2 border-dashed border-border/50 p-6 md:p-8 bg-primary/5">
@@ -155,11 +151,11 @@ export const WorkflowChat = () => {
             </div>
           ))
         )}
-            </div>
-          </div>
+        </div>
+      </div>
 
-          {/* Sticky Input at bottom of scroll area */}
-          <div className="sticky bottom-0 z-30 border-t border-border/50 bg-card/80 backdrop-blur-sm p-3 md:p-4">
+      {/* Fixed Input at bottom (above navbar) */}
+      <div className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] md:bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-30 border-t border-border/50 bg-card/80 backdrop-blur-sm p-3 md:p-4">
         {/* Voice Input (Primary) */}
         <div className="mb-3 flex flex-col gap-2 md:gap-3 rounded-xl border border-border/50 bg-card/80 p-3 md:p-4">
           <div className="flex items-center justify-between text-xs md:text-sm font-medium">
@@ -220,8 +216,6 @@ export const WorkflowChat = () => {
           >
             {sending ? <Loader2 size={16} className="md:w-5 md:h-5 animate-spin" /> : <Send size={16} className="md:w-5 md:h-5" />}
           </button>
-        </div>
-          </div>
         </div>
       </div>
     </div>

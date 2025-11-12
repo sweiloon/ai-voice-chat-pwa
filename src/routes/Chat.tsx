@@ -23,19 +23,14 @@ export const Chat = () => {
         {/* Fixed Header */}
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
-        {/* Scrollable container with sticky composer at bottom */}
-        <div className="flex-1 overflow-hidden pt-[56px] md:pt-[64px] pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
-          <div className="h-full flex flex-col">
-            {/* Scrollable Chat Area */}
-            <div className="flex-1 overflow-y-auto">
-              <ChatView />
-            </div>
+        {/* Scrollable Chat History with padding for fixed header and fixed input */}
+        <div className="flex-1 overflow-y-auto pt-[56px] md:pt-[64px] pb-[calc(220px+env(safe-area-inset-bottom))] md:pb-[calc(240px+env(safe-area-inset-bottom))]">
+          <ChatView />
+        </div>
 
-            {/* Sticky Composer at bottom of scroll area */}
-            <div className="sticky bottom-0 z-30">
-              <Composer />
-            </div>
-          </div>
+        {/* Fixed Composer at bottom (above navbar) */}
+        <div className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] md:bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-30">
+          <Composer />
         </div>
       </main>
     </div>
