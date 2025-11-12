@@ -1,12 +1,11 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { CheckCircle2, Eye, EyeOff, Loader2, Save, Settings, UploadCloud, XCircle } from 'lucide-react'
-import { toast } from 'sonner'
 
-import { listVoices } from '@/lib/tts'
-import { useSessionStore } from '@/store/sessions'
 import { useSettingsStore, type Provider } from '@/store/settings'
-import { useN8NStore } from '@/store/n8n'
+import { useVoiceSettings } from '@/hooks/useVoiceSettings'
+import { useDataControl } from '@/hooks/useDataControl'
+import { useN8NConnection } from '@/hooks/useN8NConnection'
 
 const providerOptions: Provider[] = ['mock', 'openai', 'anthropic']
 
@@ -15,69 +14,22 @@ export const SettingsSheet = () => {
   const [activeTab, setActiveTab] = useState<'ai-chat' | 'n8n'>('ai-chat')
   const settings = useSettingsStore()
   const setSettingsValue = useSettingsStore((state) => state.setValue)
-  const { exportData, importData } = useSessionStore()
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
 
-  // N8N settings
-  const { settings: n8nSettings, setSettings: setN8NSettings, testConnection } = useN8NStore()
-  const [n8nBaseUrl, setN8NBaseUrl] = useState(n8nSettings.baseUrl || '')
-  const [n8nApiKey, setN8NApiKey] = useState(n8nSettings.apiKey || '')
-  const [showN8NApiKey, setShowN8NApiKey] = useState(false)
-  const [testingConnection, setTestingConnection] = useState(false)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const loadVoices = () => setVoices(listVoices())
-    loadVoices()
-    window.speechSynthesis.onvoiceschanged = loadVoices
-    return () => {
-      window.speechSynthesis.onvoiceschanged = null
-    }
-  }, [])
-
-  const handleExport = async () => {
-    const snapshot = await exportData()
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `resonance-backup-${Date.now()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success('Export complete. Keep the JSON safe.')
-  }
-
-  const voiceOptions = useMemo(() => voices.map((voice) => voice.name), [voices])
-
-  const handleN8NTest = async () => {
-    if (!n8nBaseUrl || !n8nApiKey) {
-      toast.error('Please enter both N8N URL and API key')
-      return
-    }
-
-    setN8NSettings({ baseUrl: n8nBaseUrl, apiKey: n8nApiKey })
-    setTestingConnection(true)
-
-    try {
-      const connected = await testConnection()
-      if (connected) {
-        toast.success('N8N connection successful!')
-      } else {
-        toast.error('N8N connection failed. Check browser console (F12) for details.')
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      toast.error(`Connection failed: ${errorMessage}`)
-      console.error('N8N test error:', error)
-    } finally {
-      setTestingConnection(false)
-    }
-  }
-
-  const handleN8NSave = () => {
-    setN8NSettings({ baseUrl: n8nBaseUrl, apiKey: n8nApiKey })
-    toast.success('N8N settings saved')
-  }
+  // Custom hooks
+  const { voiceOptions } = useVoiceSettings()
+  const { handleExport, handleImport } = useDataControl()
+  const {
+    n8nSettings,
+    n8nBaseUrl,
+    setN8NBaseUrl,
+    n8nApiKey,
+    setN8NApiKey,
+    showN8NApiKey,
+    setShowN8NApiKey,
+    testingConnection,
+    handleN8NTest,
+    handleN8NSave
+  } = useN8NConnection()
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -234,15 +186,7 @@ export const SettingsSheet = () => {
                     onChange={async (event) => {
                       const file = event.target.files?.[0]
                       if (!file) return
-                      const text = await file.text()
-                      try {
-                        const payload = JSON.parse(text)
-                        await importData(payload)
-                        toast.success('Import successful')
-                      } catch (error) {
-                        toast.error('Invalid JSON snapshot')
-                        console.error(error)
-                      }
+                      await handleImport(file)
                     }}
                   />
                 </label>
