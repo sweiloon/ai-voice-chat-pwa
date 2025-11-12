@@ -76,32 +76,36 @@ export const WorkflowList = () => {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 md:gap-5">
-      <div className="sticky top-0 z-10 flex items-center justify-between bg-background/60 backdrop-blur-sm pb-3 md:pb-4 border-b border-border/50">
-        <div className="space-y-0.5">
-          <h1 className="text-lg md:text-xl font-bold text-foreground">
-            Active Workflows
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            {workflows.length} {workflows.length === 1 ? 'workflow' : 'workflows'}
-          </p>
+    <>
+      {/* Fixed "Active Workflows" Header below main header */}
+      <div className="fixed top-[56px] md:top-[64px] left-0 right-0 z-30 flex items-center justify-between bg-background/80 backdrop-blur-sm pb-3 md:pb-4 px-4 md:px-6 pt-4 md:pt-6 border-b border-border/50">
+        <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
+          <div className="space-y-0.5">
+            <h1 className="text-lg md:text-xl font-bold text-foreground">
+              Active Workflows
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              {workflows.length} {workflows.length === 1 ? 'workflow' : 'workflows'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void refreshWorkflows()}
+            className="inline-flex items-center gap-1.5 md:gap-2 rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm px-3 py-2 text-xs md:text-sm font-medium transition-all hover:bg-card hover:shadow-sm hover:border-primary/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loadingWorkflows}
+          >
+            <RefreshCw size={14} className={`md:w-4 md:h-4 ${loadingWorkflows ? 'animate-spin text-primary' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void refreshWorkflows()}
-          className="inline-flex items-center gap-1.5 md:gap-2 rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm px-3 py-2 text-xs md:text-sm font-medium transition-all hover:bg-card hover:shadow-sm hover:border-primary/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={loadingWorkflows}
-        >
-          <RefreshCw size={14} className={`md:w-4 md:h-4 ${loadingWorkflows ? 'animate-spin text-primary' : ''}`} />
-          <span className="hidden sm:inline">Refresh</span>
-        </button>
       </div>
 
-      <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Workflow Grid with padding for fixed header */}
+      <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 pt-[80px] md:pt-[96px]">
         {workflows.map((workflow) => (
           <WorkflowCard key={workflow.id} workflow={workflow} />
         ))}
       </div>
-    </div>
+    </>
   )
 }
