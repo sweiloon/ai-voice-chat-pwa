@@ -101,9 +101,9 @@ export const WorkflowChat = () => {
   }
 
   return (
-    <div className="flex h-full flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
-      {/* Header */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+    <div className="flex h-full flex-col relative">
+      {/* Fixed Header */}
+      <header className="fixed top-0 left-0 right-0 z-40 border-b border-border/50 bg-card/80 backdrop-blur-sm">
         <div className="flex h-12 md:h-14 items-center gap-2 md:gap-3 px-3 md:px-4">
           <button
             type="button"
@@ -119,10 +119,11 @@ export const WorkflowChat = () => {
         </div>
       </header>
 
-      {/* Messages */}
-      <div ref={containerRef} className="flex-1 space-y-3 md:space-y-4 overflow-y-auto p-3 md:p-4 bg-gradient-to-b from-background to-secondary/5">
+      {/* Scrollable Messages Area with padding for fixed header and fixed input */}
+      <div className="flex-1 overflow-hidden pt-[48px] md:pt-[56px] pb-[calc(220px+env(safe-area-inset-bottom))] md:pb-[calc(240px+env(safe-area-inset-bottom))]">
+        <div ref={containerRef} className="h-full space-y-3 md:space-y-4 overflow-y-auto p-3 md:p-4 bg-gradient-to-b from-background to-secondary/5">
         {workflowMessages.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 md:gap-4 text-center text-muted-foreground py-8 md:py-12">
+          <div className="flex flex-col items-center justify-center gap-3 md:gap-4 text-center text-muted-foreground py-8 md:py-12 min-h-full">
             <div className="rounded-full border-2 border-dashed border-border/50 p-6 md:p-8 bg-primary/5">
               <Mic size={32} className="md:w-10 md:h-10 text-primary" />
             </div>
@@ -151,10 +152,11 @@ export const WorkflowChat = () => {
             </div>
           ))
         )}
+        </div>
       </div>
 
-      {/* Input */}
-      <div className="border-t border-border/50 bg-card/50 backdrop-blur-sm p-3 md:p-4">
+      {/* Fixed Input at bottom (above navbar) */}
+      <div className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] md:bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-30 border-t border-border/50 bg-card/80 backdrop-blur-sm p-3 md:p-4">
         {/* Voice Input (Primary) */}
         <div className="mb-3 flex flex-col gap-2 md:gap-3 rounded-xl border border-border/50 bg-card/80 p-3 md:p-4">
           <div className="flex items-center justify-between text-xs md:text-sm font-medium">

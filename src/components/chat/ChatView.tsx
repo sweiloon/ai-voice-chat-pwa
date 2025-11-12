@@ -49,9 +49,9 @@ export const ChatView = () => {
   }, [currentMessages, preferredVoice, settings.playAssistantAudio, settings.ttsRate])
 
   return (
-    <div ref={containerRef} className="flex-1 space-y-3 md:space-y-4 overflow-y-auto p-3 md:p-4 bg-gradient-to-b from-background to-secondary/5">
+    <div ref={containerRef} className="h-full space-y-3 md:space-y-4 overflow-y-auto p-3 md:p-4 bg-gradient-to-b from-background to-secondary/5">
       {!currentMessages.length ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 md:gap-4 text-center text-muted-foreground py-8 md:py-12">
+        <div className="flex flex-col items-center justify-center gap-3 md:gap-4 text-center text-muted-foreground py-8 md:py-12 min-h-full">
           <div className="rounded-full border-2 border-dashed border-border/50 p-6 md:p-8 bg-primary/5">
             <MessageSquare size={32} className="md:w-10 md:h-10 text-primary" />
           </div>

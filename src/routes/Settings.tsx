@@ -103,9 +103,9 @@ export const Settings = () => {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
-      {/* Header */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
+    <div className="flex h-screen flex-col bg-background">
+      {/* Fixed Header */}
+      <header className="fixed top-0 left-0 right-0 z-40 border-b border-border/50 bg-card/80 backdrop-blur-sm">
         <div className="flex h-12 md:h-14 items-center px-3 md:px-4">
           <button
             onClick={() => navigate(-1)}
@@ -120,8 +120,8 @@ export const Settings = () => {
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="sticky top-12 md:top-14 z-30 border-b border-border/50 bg-card/50 backdrop-blur-sm px-3 md:px-4">
+      {/* Fixed Tabs */}
+      <div className="fixed top-[48px] md:top-[56px] left-0 right-0 z-30 border-b border-border/50 bg-card/80 backdrop-blur-sm px-3 md:px-4">
         <div className="flex gap-0.5 md:gap-1">
           <button
             type="button"
@@ -154,8 +154,8 @@ export const Settings = () => {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Scrollable Content with padding for fixed header, tabs, and navbar */}
+      <div className="flex-1 overflow-y-auto pt-[96px] md:pt-[112px] pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-2xl px-4 md:px-6 py-6 space-y-6">
           {activeTab === 'ai-chat' ? (
             <>

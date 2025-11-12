@@ -10,9 +10,9 @@ import { SetupGuide } from '@/components/n8n/SetupGuide'
  */
 export const Home = () => {
   return (
-    <div className="flex h-screen flex-col bg-background pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
-      {/* Header */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+    <div className="flex h-screen flex-col bg-background">
+      {/* Fixed Header */}
+      <header className="fixed top-0 left-0 right-0 z-40 border-b border-border/50 bg-card/80 backdrop-blur-sm">
         <div className="flex h-14 md:h-16 items-center justify-between px-4 md:px-6 max-w-7xl mx-auto">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-0.5">
@@ -31,8 +31,8 @@ export const Home = () => {
         </div>
       </header>
 
-      {/* Workflow List */}
-      <main className="flex-1 overflow-y-auto bg-gradient-to-b from-background to-secondary/5">
+      {/* Scrollable Workflow List with padding for fixed header and navbar */}
+      <main className="flex-1 overflow-y-auto bg-gradient-to-b from-background to-secondary/5 pt-[56px] md:pt-[64px] pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6">
           <WorkflowList />
         </div>
