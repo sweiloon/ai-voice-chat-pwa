@@ -5,12 +5,15 @@ export class N8NClient {
   private client: AxiosInstance
   private useProxy: boolean
 
-  constructor(baseUrl: string, apiKey: string, useProxy = true) {
+  constructor(baseUrl: string, apiKey: string, useProxy?: boolean) {
     // Remove trailing slash from baseURL if present
     const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
 
-    // Auto-detect N8N Cloud and use proxy
-    this.useProxy = useProxy && (cleanBaseUrl.includes('.app.n8n.cloud') || cleanBaseUrl.includes('n8n.cloud'))
+    // Determine if proxy should be used:
+    // 1. Explicit useProxy parameter (for self-hosted with user preference)
+    // 2. Auto-detect N8N Cloud and always use proxy
+    const isN8NCloud = cleanBaseUrl.includes('.app.n8n.cloud') || cleanBaseUrl.includes('n8n.cloud')
+    this.useProxy = useProxy !== undefined ? useProxy : isN8NCloud
 
     // Determine proxy URL based on current environment
     // Production: Use Vercel serverless function
@@ -233,9 +236,9 @@ export class N8NClient {
 /**
  * Create N8N client instance
  */
-export const createN8NClient = (baseUrl: string, apiKey: string): N8NClient => {
+export const createN8NClient = (baseUrl: string, apiKey: string, useProxy?: boolean): N8NClient => {
   if (!baseUrl || !apiKey) {
     throw new Error('N8N base URL and API key are required')
   }
-  return new N8NClient(baseUrl, apiKey)
+  return new N8NClient(baseUrl, apiKey, useProxy)
 }

@@ -57,7 +57,7 @@ export const useN8NStore = create<N8NState>()(
         }
 
         try {
-          const client = createN8NClient(settings.baseUrl, settings.apiKey)
+          const client = createN8NClient(settings.baseUrl, settings.apiKey, settings.useProxy)
           const connected = await client.testConnection()
           set((state) => ({
             settings: { ...state.settings, connected },
@@ -81,7 +81,7 @@ export const useN8NStore = create<N8NState>()(
         set({ loadingWorkflows: true })
 
         try {
-          const client = createN8NClient(settings.baseUrl, settings.apiKey)
+          const client = createN8NClient(settings.baseUrl, settings.apiKey, settings.useProxy)
           const workflows = await client.getWorkflows()
           set({
             workflows,
@@ -138,7 +138,7 @@ export const useN8NStore = create<N8NState>()(
           return
         }
 
-        const client = createN8NClient(settings.baseUrl, settings.apiKey!)
+        const client = createN8NClient(settings.baseUrl, settings.apiKey!, settings.useProxy)
 
         // Debug: Inspect workflow structure and webhook data
         debugWorkflowWebhook(workflow, settings.baseUrl)

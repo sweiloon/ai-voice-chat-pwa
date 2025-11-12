@@ -29,8 +29,12 @@ export const Settings = () => {
 
   // N8N settings
   const { settings: n8nSettings, setSettings: setN8NSettings, testConnection } = useN8NStore()
+  const [instanceType, setInstanceType] = useState<'cloud' | 'self-hosted'>(
+    n8nSettings.instanceType || 'cloud'
+  )
   const [n8nBaseUrl, setN8NBaseUrl] = useState(n8nSettings.baseUrl || '')
   const [n8nApiKey, setN8NApiKey] = useState(n8nSettings.apiKey || '')
+  const [useProxy, setUseProxy] = useState(n8nSettings.useProxy ?? false)
   const [showN8NApiKey, setShowN8NApiKey] = useState(false)
   const [testingConnection, setTestingConnection] = useState(false)
 
@@ -64,7 +68,12 @@ export const Settings = () => {
       return
     }
 
-    setN8NSettings({ baseUrl: n8nBaseUrl, apiKey: n8nApiKey })
+    setN8NSettings({
+      instanceType,
+      baseUrl: n8nBaseUrl,
+      apiKey: n8nApiKey,
+      useProxy: instanceType === 'self-hosted' ? useProxy : undefined
+    })
     setTestingConnection(true)
 
     try {
@@ -84,7 +93,12 @@ export const Settings = () => {
   }
 
   const handleN8NSave = () => {
-    setN8NSettings({ baseUrl: n8nBaseUrl, apiKey: n8nApiKey })
+    setN8NSettings({
+      instanceType,
+      baseUrl: n8nBaseUrl,
+      apiKey: n8nApiKey,
+      useProxy: instanceType === 'self-hosted' ? useProxy : undefined
+    })
     toast.success('N8N settings saved')
   }
 
@@ -285,6 +299,36 @@ export const Settings = () => {
               {/* N8N Tab Content */}
               <section>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Instance Type
+                </p>
+                <div className="grid grid-cols-2 gap-2 mb-6">
+                  <button
+                    type="button"
+                    className={`rounded-lg border px-4 py-3 text-sm font-medium transition hover:bg-accent ${
+                      instanceType === 'cloud'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground'
+                    }`}
+                    onClick={() => setInstanceType('cloud')}
+                  >
+                    N8N Cloud
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-lg border px-4 py-3 text-sm font-medium transition hover:bg-accent ${
+                      instanceType === 'self-hosted'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground'
+                    }`}
+                    onClick={() => setInstanceType('self-hosted')}
+                  >
+                    Self-Hosted
+                  </button>
+                </div>
+              </section>
+
+              <section>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   Connection
                 </p>
                 <div className="space-y-4">
@@ -300,7 +344,11 @@ export const Settings = () => {
                       type="url"
                       value={n8nBaseUrl}
                       onChange={(event) => setN8NBaseUrl(event.target.value)}
-                      placeholder="https://n8n.example.com"
+                      placeholder={
+                        instanceType === 'cloud'
+                          ? 'https://yourworkspace.app.n8n.cloud'
+                          : 'http://localhost:5678 or https://n8n.yourdomain.com'
+                      }
                       className="rounded-lg border border-border bg-transparent px-3 py-2.5 transition focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </label>
@@ -323,6 +371,20 @@ export const Settings = () => {
                       </button>
                     </div>
                   </label>
+
+                  {/* Show proxy option only for self-hosted */}
+                  {instanceType === 'self-hosted' && (
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useProxy}
+                        onChange={(event) => setUseProxy(event.target.checked)}
+                        className="h-4 w-4"
+                      />
+                      <span>Use proxy server (enable if you have CORS issues)</span>
+                    </label>
+                  )}
+
                   <div className="flex gap-3">
                     <button
                       type="button"
@@ -350,28 +412,79 @@ export const Settings = () => {
                 </div>
               </section>
 
+              {/* Setup Guide Section */}
               <section>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  About
+                  Setup Guide
                 </p>
-                <div className="space-y-3 text-sm text-muted-foreground">
-                  <p>
-                    Connect your N8N instance to trigger workflows via voice or text chat. The app will
-                    automatically use a proxy server for N8N Cloud instances.
-                  </p>
-                  <div className="rounded-lg border border-border bg-muted/30 p-4 text-xs">
-                    <p className="mb-2 font-semibold text-foreground">Using N8N Cloud?</p>
-                    <p className="mb-2">
-                      Make sure the proxy server is running:
-                    </p>
-                    <code className="block rounded bg-background p-2 font-mono mb-2">
-                      npm run dev:proxy
-                    </code>
-                    <p className="text-muted-foreground">
-                      The proxy runs on port 3001 and bypasses CORS restrictions.
-                    </p>
+                {instanceType === 'cloud' ? (
+                  <div className="space-y-3 text-sm text-muted-foreground">
+                    <p>Connect your N8N Cloud instance to trigger workflows via voice or text chat.</p>
+                    <div className="rounded-lg border border-border bg-muted/30 p-4 text-xs space-y-3">
+                      <div>
+                        <p className="mb-2 font-semibold text-foreground">1. Get your N8N Cloud URL:</p>
+                        <p className="mb-2">Go to your N8N Cloud workspace. Your URL will look like:</p>
+                        <code className="block rounded bg-background p-2 font-mono">
+                          https://yourworkspace.app.n8n.cloud
+                        </code>
+                      </div>
+                      <div>
+                        <p className="mb-2 font-semibold text-foreground">2. Get your API key:</p>
+                        <ul className="list-disc list-inside space-y-1 ml-2">
+                          <li>Open N8N Cloud and go to Settings → API</li>
+                          <li>Click "Create API Key"</li>
+                          <li>Give it a name (e.g., "Voice Chat App")</li>
+                          <li>Copy the generated API key</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="mb-2 font-semibold text-foreground">3. Connection:</p>
+                        <p>N8N Cloud requires a proxy to bypass CORS. The app automatically uses the proxy for Cloud instances.</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-3 text-sm text-muted-foreground">
+                    <p>Connect your self-hosted N8N instance to trigger workflows.</p>
+                    <div className="rounded-lg border border-border bg-muted/30 p-4 text-xs space-y-3">
+                      <div>
+                        <p className="mb-2 font-semibold text-foreground">1. Get your N8N URL:</p>
+                        <p className="mb-2">Your N8N URL depends on your setup:</p>
+                        <code className="block rounded bg-background p-2 font-mono mb-2">
+                          http://localhost:5678 (local development)
+                        </code>
+                        <code className="block rounded bg-background p-2 font-mono">
+                          https://n8n.yourdomain.com (production)
+                        </code>
+                      </div>
+                      <div>
+                        <p className="mb-2 font-semibold text-foreground">2. Get your API key:</p>
+                        <ul className="list-disc list-inside space-y-1 ml-2">
+                          <li>Open your N8N instance and go to Settings → API</li>
+                          <li>Click "Create API Key"</li>
+                          <li>Give it a name (e.g., "Voice Chat App")</li>
+                          <li>Copy the generated API key</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="mb-2 font-semibold text-foreground">3. Configure CORS (Direct Connection):</p>
+                        <p className="mb-2">If you want to connect directly without proxy, configure CORS in your N8N instance:</p>
+                        <code className="block rounded bg-background p-2 font-mono mb-2">
+                          N8N_CORS_ORIGIN=*
+                        </code>
+                        <p className="text-muted-foreground">
+                          Or restrict to your domain: N8N_CORS_ORIGIN=https://yourdomain.com
+                        </p>
+                      </div>
+                      <div>
+                        <p className="mb-2 font-semibold text-foreground">4. Use Proxy (if you have CORS issues):</p>
+                        <p className="mb-2">
+                          If you don't want to configure CORS, enable the "Use proxy server" option above. The proxy will handle CORS for you.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </section>
             </>
           )}

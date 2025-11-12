@@ -54,8 +54,10 @@ export interface N8NMessage {
 }
 
 export interface N8NSettings {
+  instanceType?: 'cloud' | 'self-hosted' // Type of N8N instance
   baseUrl?: string
   apiKey?: string
+  useProxy?: boolean // For self-hosted: whether to use proxy or direct connection
   connected: boolean
   lastSync?: number
 }
