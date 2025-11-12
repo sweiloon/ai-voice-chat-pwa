@@ -2,9 +2,11 @@ import axios from 'axios'
 
 /**
  * Vercel Serverless Function for N8N Proxy
- * Last deployed: 2025-11-12 - Force rebuild to clear Vercel cache
+ * Version: 3.0.0 - Path normalization + ES modules
+ * Last updated: 2025-11-12 04:30 UTC
  */
 export default async (req, res) => {
+  console.log('[N8N Proxy v3.0.0] Function invoked')
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
