@@ -1,4 +1,4 @@
-import { Loader2, Send, StopCircle } from 'lucide-react'
+import { Send, StopCircle } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 
