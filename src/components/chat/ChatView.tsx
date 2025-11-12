@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { MessageSquare } from 'lucide-react'
 
 import { MessageItem } from '@/components/chat/MessageItem'
@@ -7,7 +7,11 @@ import { listVoices, speak } from '@/lib/tts'
 import { useSessionStore } from '@/store/sessions'
 import { useSettingsStore } from '@/store/settings'
 
-export const ChatView = () => {
+interface ChatViewProps {
+  scrollContainerRef: RefObject<HTMLDivElement | null>
+}
+
+export const ChatView = ({ scrollContainerRef }: ChatViewProps) => {
   const { activeSessionId, messages, ensureMessages } = useSessionStore()
   const settings = useSettingsStore()
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
@@ -30,9 +34,12 @@ export const ChatView = () => {
 
   const currentMessages = messages[activeSessionId ?? ''] ?? []
 
+  // Scroll to bottom when messages change or component mounts
   useEffect(() => {
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
-  }, [currentMessages])
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    }
+  }, [currentMessages, scrollContainerRef])
 
   const preferredVoice = useMemo(() => {
     if (!voices.length) return undefined

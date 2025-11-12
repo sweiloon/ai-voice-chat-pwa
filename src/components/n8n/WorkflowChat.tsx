@@ -23,14 +23,18 @@ export const WorkflowChat = () => {
   const [sending, setSending] = useState(false)
 
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const supported = Boolean(getSpeechRecognition())
 
   useEffect(() => {
     return () => recognitionRef.current?.stop()
   }, [])
 
+  // Scroll to bottom when messages change or component mounts
   useEffect(() => {
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    }
   }, [workflowMessages])
 
   const startVoiceInput = () => {
@@ -119,7 +123,10 @@ export const WorkflowChat = () => {
       </header>
 
       {/* Scrollable Messages Area with padding for fixed header and fixed input */}
-      <div className="flex-1 overflow-y-auto pt-[48px] md:pt-[56px] pb-[calc(220px+env(safe-area-inset-bottom))] md:pb-[calc(240px+env(safe-area-inset-bottom))]">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto pt-[48px] md:pt-[56px] pb-[calc(220px+env(safe-area-inset-bottom))] md:pb-[calc(240px+env(safe-area-inset-bottom))]"
+      >
         <div className="space-y-3 md:space-y-4 p-3 md:p-4 bg-gradient-to-b from-background to-secondary/5 min-h-full">
         {workflowMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 md:gap-4 text-center text-muted-foreground py-8 md:py-12 min-h-full">

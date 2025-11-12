@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 import { ChatView } from '@/components/chat/ChatView'
 import { Composer } from '@/components/chat/Composer'
@@ -15,6 +15,7 @@ import { useIsDesktop } from '@/hooks/useMediaQuery'
 export const Chat = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const isDesktop = useIsDesktop()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   return (
     <div className="flex h-screen bg-background">
@@ -24,8 +25,11 @@ export const Chat = () => {
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
 
         {/* Scrollable Chat History with padding for fixed header and fixed input */}
-        <div className="flex-1 overflow-y-auto pt-[56px] md:pt-[64px] pb-[calc(220px+env(safe-area-inset-bottom))] md:pb-[calc(240px+env(safe-area-inset-bottom))]">
-          <ChatView />
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto pt-[56px] md:pt-[64px] pb-[calc(220px+env(safe-area-inset-bottom))] md:pb-[calc(240px+env(safe-area-inset-bottom))]"
+        >
+          <ChatView scrollContainerRef={scrollContainerRef} />
         </div>
 
         {/* Fixed Composer at bottom (above navbar) */}
