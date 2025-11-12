@@ -61,7 +61,18 @@ export default async (req, res) => {
 
     // Extract path and query from URL
     const urlMatch = req.url.match(/\/api\/n8n-proxy(\/.*)/)
-    const fullPath = urlMatch ? urlMatch[1] : '/api/v1/workflows'
+    let fullPath = urlMatch ? urlMatch[1] : '/api/v1/workflows'
+
+    // Normalize path: if it doesn't start with /api, prepend /api/v1
+    // This handles both /api/v1/workflows and /workflows
+    if (fullPath.startsWith('/?')) {
+      fullPath = '/api/v1/workflows' + fullPath.substring(1)
+    } else if (!fullPath.startsWith('/api')) {
+      // Remove leading slash, then prepend /api/v1
+      const cleanPath = fullPath.startsWith('/') ? fullPath.substring(1) : fullPath
+      fullPath = '/api/v1/' + cleanPath
+    }
+
     const [path, queryString] = fullPath.split('?')
 
     // Parse query parameters
