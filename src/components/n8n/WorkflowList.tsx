@@ -77,7 +77,7 @@ export const WorkflowList = () => {
 
   return (
     <div className="flex flex-1 flex-col gap-4 md:gap-5">
-      <div className="flex items-center justify-between">
+      <div className="sticky top-0 z-10 flex items-center justify-between bg-background/60 backdrop-blur-sm pb-3 md:pb-4 border-b border-border/50">
         <div className="space-y-0.5">
           <h1 className="text-lg md:text-xl font-bold text-foreground">
             Active Workflows

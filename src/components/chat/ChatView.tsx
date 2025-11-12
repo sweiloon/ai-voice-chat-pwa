@@ -48,33 +48,31 @@ export const ChatView = () => {
     lastSpokenRef.current = last.id
   }, [currentMessages, preferredVoice, settings.playAssistantAudio, settings.ttsRate])
 
-  if (!currentMessages.length) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center text-muted-foreground">
-        <div className="rounded-full border border-dashed border-border p-6">
-          <MessageSquare size={32} />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Start chatting</h2>
-          <p className="text-sm">Type a prompt or use the voice controls below.</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div ref={containerRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-4 md:space-y-6 md:px-6 md:py-8">
-      {currentMessages.map((message: MessageRecord) => (
-        <MessageItem
-          key={message.id}
-          message={message}
-          onSpeak={
-            message.role === 'assistant'
-              ? () => speak(message.content, { voice: preferredVoice, rate: settings.ttsRate })
-              : undefined
-          }
-        />
-      ))}
+    <div ref={containerRef} className="flex-1 space-y-3 md:space-y-4 overflow-y-auto p-3 md:p-4 bg-gradient-to-b from-background to-secondary/5">
+      {!currentMessages.length ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 md:gap-4 text-center text-muted-foreground py-8 md:py-12">
+          <div className="rounded-full border-2 border-dashed border-border/50 p-6 md:p-8 bg-primary/5">
+            <MessageSquare size={32} className="md:w-10 md:h-10 text-primary" />
+          </div>
+          <div className="space-y-1 md:space-y-2">
+            <h3 className="text-base md:text-lg font-semibold text-foreground">Start Conversation</h3>
+            <p className="text-xs md:text-sm text-muted-foreground px-4">Use voice or text to chat with AI</p>
+          </div>
+        </div>
+      ) : (
+        currentMessages.map((message: MessageRecord) => (
+          <MessageItem
+            key={message.id}
+            message={message}
+            onSpeak={
+              message.role === 'assistant'
+                ? () => speak(message.content, { voice: preferredVoice, rate: settings.ttsRate })
+                : undefined
+            }
+          />
+        ))
+      )}
     </div>
   )
 }

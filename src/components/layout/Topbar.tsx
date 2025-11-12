@@ -25,7 +25,7 @@ export const Topbar = ({ onMenuClick }: TopbarProps) => {
   }
 
   return (
-    <header className="flex items-center justify-between border-b border-border bg-background/60 px-4 py-3 md:px-6 md:py-4">
+    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/60 backdrop-blur-sm px-4 py-3 md:px-6 md:py-4">
       <div className="flex items-center gap-3">
         {!isDesktop && (
           <button

@@ -56,7 +56,7 @@ export const WorkflowCard = ({ workflow }: WorkflowCardProps) => {
 
           {/* Metadata */}
           <div className="flex items-center gap-2 flex-wrap">
-            <TriggerBadge capability={capability} />
+            <TriggerBadge capability={capability} showTooltip={false} />
             <span className="text-[10px] md:text-xs text-muted-foreground">
               {new Date(workflow.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
             </span>

@@ -1,4 +1,4 @@
-import { Loader2, Send, StopCircle, Upload } from 'lucide-react'
+import { Loader2, Send, StopCircle } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 
@@ -67,57 +67,70 @@ export const Composer = () => {
     await send(value)
   }
 
+  // Auto-resize textarea based on content
+  const adjustTextareaHeight = (textarea: HTMLTextAreaElement | null) => {
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    const maxHeight = 120 // Max height in pixels (approximately 5-6 lines)
+    const scrollHeight = Math.min(textarea.scrollHeight, maxHeight)
+    textarea.style.height = `${scrollHeight}px`
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="relative flex flex-col gap-3 border-t border-border bg-background/80 px-4 py-3 md:flex-row md:gap-4 md:px-6 md:py-4">
-      <div className="flex flex-1 flex-col gap-3">
+    <div className="border-t border-border/50 bg-card/50 backdrop-blur-sm p-3 md:p-4">
+      {/* Voice Input (Primary) */}
+      <div className="mb-3">
+        <VoiceControls onSubmit={send} disabled={isStreaming} />
+      </div>
+
+      {/* Text Input (Secondary) */}
+      <form onSubmit={handleSubmit} className="flex gap-2">
         <textarea
-          ref={textareaRef}
+          ref={(el) => {
+            textareaRef.current = el
+            adjustTextareaHeight(el)
+          }}
           value={value}
-          onChange={(event) => setValue(event.target.value)}
-          placeholder="Ask anything... (Cmd+Enter to send)"
-          className="min-h-[48px] w-full resize-none rounded-2xl border border-border bg-card/80 px-4 py-3 text-sm text-foreground shadow-inner focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-          rows={2}
-          onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-              event.preventDefault()
+          onChange={(e) => {
+            setValue(e.target.value)
+            adjustTextareaHeight(e.target)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
               void send(value)
             }
-            if (event.key === 'Escape' && isStreaming) {
+            if (e.key === 'Escape' && isStreaming) {
               abortRef.current?.abort()
               setIsStreaming(false)
             }
           }}
+          placeholder="Or type your message..."
+          className="flex-1 rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm px-3 py-2.5 md:px-4 md:py-3 text-xs md:text-sm outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/60 resize-none overflow-y-auto min-h-[40px] max-h-[120px]"
+          disabled={isStreaming}
+          rows={1}
         />
-        <VoiceControls onSubmit={send} disabled={isStreaming} />
-      </div>
-      <div className="flex items-center justify-end gap-2 md:flex-col md:items-end">
-        <label className="inline-flex h-12 w-12 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-border text-muted-foreground transition hover:text-foreground">
-          <Upload size={18} />
-          <input type="file" className="hidden" aria-label="Attach file" />
-        </label>
         {isStreaming ? (
           <button
             type="button"
-            aria-label="Stop response"
             onClick={() => {
               abortRef.current?.abort()
               setIsStreaming(false)
             }}
-            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive text-destructive-foreground shadow-lg transition hover:opacity-90"
+            className="inline-flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl bg-destructive text-destructive-foreground shadow-md transition-all hover:shadow-lg active:scale-95 self-end"
           >
-            <StopCircle size={18} />
+            <StopCircle size={16} className="md:w-5 md:h-5" />
           </button>
         ) : (
           <button
             type="submit"
-            aria-label="Send message"
             disabled={!value.trim()}
-            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md transition-all hover:shadow-lg active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 self-end"
           >
-            {isStreaming ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
+            <Send size={16} className="md:w-5 md:h-5" />
           </button>
         )}
-      </div>
-    </form>
+      </form>
+    </div>
   )
 }
