@@ -2,11 +2,11 @@ import axios from 'axios'
 
 /**
  * Vercel Serverless Function for N8N Proxy
- * Version: 3.0.0 - Path normalization + ES modules
- * Last updated: 2025-11-12 04:30 UTC
+ * Version: 3.1.0 - Filter invalid query parameters
+ * Last updated: 2025-11-12 04:45 UTC
  */
 export default async (req, res) => {
-  console.log('[N8N Proxy v3.0.0] Function invoked')
+  console.log('[N8N Proxy v3.1.0] Function invoked')
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
@@ -82,6 +82,9 @@ export default async (req, res) => {
     if (queryString) {
       const searchParams = new URLSearchParams(queryString)
       searchParams.forEach((value, key) => {
+        // Filter out 'path' parameter - it's used for routing, not for N8N API
+        if (key === 'path') return
+
         // Convert limit/offset to numbers
         params[key] = (key === 'limit' || key === 'offset') ? parseInt(value, 10) : value
       })
