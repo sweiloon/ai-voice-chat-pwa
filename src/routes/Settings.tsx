@@ -447,6 +447,119 @@ export const Settings = () => {
                   </div>
                 )}
               </section>
+
+              {/* Workflow Webhook Setup Guide */}
+              <section>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Workflow Webhook Setup
+                </p>
+                <div className="space-y-3 text-sm text-muted-foreground">
+                  <p>Configure your N8N workflow to receive messages from this app.</p>
+                  <div className="rounded-lg border border-border bg-muted/30 p-4 text-xs space-y-4">
+                    <div>
+                      <p className="mb-2 font-semibold text-foreground">Step 1: Create or Open Workflow</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Go to your N8N instance and create a new workflow</li>
+                        <li>Or open an existing workflow you want to connect</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 font-semibold text-foreground">Step 2: Add Webhook Node (First Node)</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Click the "+" button to add a new node</li>
+                        <li>Search for "Webhook" and select the "Webhook" trigger node</li>
+                        <li><strong>Important:</strong> The Webhook must be the FIRST node in your workflow</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 font-semibold text-foreground">Step 3: Configure Webhook Node</p>
+                      <div className="space-y-2 ml-2">
+                        <p className="font-medium text-foreground">Required Settings:</p>
+                        <div className="bg-background rounded p-3 space-y-2">
+                          <div>
+                            <p className="font-medium text-foreground">• HTTP Method:</p>
+                            <code className="ml-2 text-primary">POST</code>
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground">• Path:</p>
+                            <code className="ml-2 text-primary">Leave auto-generated or set custom path</code>
+                            <p className="ml-2 mt-1 text-muted-foreground">N8N will generate a unique webhook ID automatically</p>
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground">• Authentication:</p>
+                            <code className="ml-2 text-primary">None</code>
+                            <p className="ml-2 mt-1 text-muted-foreground">The app handles authentication via API keys</p>
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground">• Response Mode:</p>
+                            <code className="ml-2 text-primary">"When Last Node Finishes" or "Using Respond to Webhook Node"</code>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 font-semibold text-foreground">Step 4: Add Your AI Logic</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Connect an AI node (OpenAI, Anthropic, etc.) after the Webhook</li>
+                        <li>Use the incoming data: <code className="text-primary">{'{{ $json.chatInput }}'}</code> or <code className="text-primary">{'{{ $json.message }}'}</code></li>
+                        <li>The app sends both fields for compatibility</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 font-semibold text-foreground">Step 5: Add Response (Optional)</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>If you want to send a response back to the app, ensure your workflow returns data</li>
+                        <li>The app will display the response in the chat</li>
+                        <li>For AI Agent nodes, the response is in: <code className="text-primary">{'{{ $json.output }}'}</code></li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 font-semibold text-foreground">Step 6: Activate Workflow</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Click the "Active" toggle in the top right corner</li>
+                        <li><strong className="text-destructive">Important:</strong> Workflow MUST be active to receive webhooks</li>
+                        <li>The workflow status should show as "Active" with a green indicator</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 font-semibold text-foreground">Step 7: Test Your Workflow</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Go to the Home page in this app</li>
+                        <li>You should see your workflow listed</li>
+                        <li>Click on it to open the chat interface</li>
+                        <li>Send a test message like "Hello"</li>
+                        <li>Check if you receive a response</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-blue-500/10 border border-blue-500/30 rounded p-3">
+                      <p className="font-semibold text-foreground mb-2">💡 Tips:</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>The webhook URL is automatically detected from your workflow</li>
+                        <li>You don't need to copy/paste the webhook URL manually</li>
+                        <li>Use the Test Connection button above to verify your N8N connection</li>
+                        <li>Check browser console (F12) for detailed error messages</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3">
+                      <p className="font-semibold text-foreground mb-2">⚠️ Common Issues:</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li><strong>Workflow not showing:</strong> Make sure it's active and has a Webhook node</li>
+                        <li><strong>No response:</strong> Check your workflow execution history in N8N</li>
+                        <li><strong>CORS errors:</strong> Enable "Use proxy server" option above (self-hosted only)</li>
+                        <li><strong>404 errors:</strong> Verify your N8N URL and API key are correct</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </>
           )}
         </div>
