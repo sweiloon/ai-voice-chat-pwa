@@ -7,6 +7,7 @@ import { Home } from '@/routes/Home'
 import { Chat } from '@/routes/Chat'
 import { Settings } from '@/routes/Settings'
 import { Profile } from '@/routes/Profile'
+import { Marketplace } from '@/routes/Marketplace'
 import { N8NWorkflowChatPage } from '@/routes/N8NWorkflowChat'
 import { useSessionStore } from '@/store/sessions'
 import { useSettingsStore } from '@/store/settings'
@@ -27,6 +28,7 @@ const AppContent = () => {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/chat" element={<Chat />} />
+        <Route path="/marketplace" element={<Marketplace />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/workflow/:workflowId" element={<N8NWorkflowChatPage />} />

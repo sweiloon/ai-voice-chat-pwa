@@ -1,4 +1,4 @@
-import { MessageSquare, Workflow, Settings, User } from 'lucide-react'
+import { MessageSquare, Workflow, Settings, Store } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 
 /**
@@ -6,7 +6,7 @@ import { Link, useLocation } from 'react-router-dom'
  *
  * Features:
  * - Renders on ALL devices (not just mobile)
- * - Four nav items: Home (N8N) | AI Chat | Settings | Profile
+ * - Four nav items: Home (N8N) | AI Chat | Marketplace | Settings
  * - Responsive touch targets (min 44px)
  * - Active state indicators
  * - Safe area support for notched devices
@@ -35,16 +35,16 @@ export const UniversalBottomNav = () => {
       description: 'Voice Assistant'
     },
     {
+      path: '/marketplace',
+      icon: Store,
+      label: 'Marketplace',
+      description: 'Workflow Marketplace'
+    },
+    {
       path: '/settings',
       icon: Settings,
       label: 'Settings',
       description: 'Configuration'
-    },
-    {
-      path: '/profile',
-      icon: User,
-      label: 'Profile',
-      description: 'Your Account'
     }
   ]
 

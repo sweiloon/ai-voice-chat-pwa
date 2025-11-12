@@ -21,7 +21,7 @@ const providerOptions: Provider[] = ['mock', 'openai', 'anthropic']
  */
 export const Settings = () => {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'ai-chat' | 'n8n'>('ai-chat')
+  const [activeTab, setActiveTab] = useState<'ai-chat' | 'n8n' | 'profile'>('ai-chat')
   const settings = useSettingsStore()
   const setSettingsValue = useSettingsStore((state) => state.setValue)
   const { exportData, importData } = useSessionStore()
@@ -151,13 +151,40 @@ export const Settings = () => {
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
             )}
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('profile')}
+            className={`px-3 md:px-4 py-2.5 md:py-3 text-xs md:text-sm font-medium transition-all rounded-t-lg relative ${
+              activeTab === 'profile'
+                ? 'text-primary'
+                : 'text-muted-foreground hover:text-foreground hover:bg-secondary/30'
+            }`}
+          >
+            Profile
+            {activeTab === 'profile' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+            )}
+          </button>
         </div>
       </div>
 
       {/* Scrollable Content with padding for fixed header, tabs, and navbar */}
       <div className="flex-1 overflow-y-auto pt-[96px] md:pt-[112px] pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-2xl px-4 md:px-6 py-6 space-y-6">
-          {activeTab === 'ai-chat' ? (
+          {activeTab === 'profile' ? (
+            <>
+              {/* Profile Tab Content */}
+              <section>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Account
+                </p>
+                <div className="text-sm text-muted-foreground text-center py-12">
+                  <p>Profile settings will be available soon.</p>
+                  <p className="mt-2">Manage your account, preferences, and more.</p>
+                </div>
+              </section>
+            </>
+          ) : activeTab === 'ai-chat' ? (
             <>
               <section>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
