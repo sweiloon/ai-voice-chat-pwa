@@ -168,7 +168,12 @@ export const useN8NStore = create<N8NState>()(
 
         console.log('📤 Sending payload:', payload)
 
-        const response = await triggerWebhook(webhookUrl, payload)
+        const response = await triggerWebhook(webhookUrl, payload, {
+          useProxy: settings.useProxy,
+          baseUrl: settings.baseUrl,
+          apiKey: settings.apiKey,
+          instanceType: settings.instanceType
+        })
 
         console.log('📥 Response:', response)
 
