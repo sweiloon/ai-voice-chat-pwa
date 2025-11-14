@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, AlertCircle, Clock, Hand, Mail, Webhook as WebhookIcon } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertCircle, Clock, Hand, Mail, Webhook as WebhookIcon, MessageSquare, FileInput, Database } from 'lucide-react'
 import type { TriggerType, TriggerCapability } from '@/n8n/triggerAnalyzer'
 
 interface TriggerBadgeProps {
@@ -33,15 +33,21 @@ export const TriggerBadge = ({ capability, showTooltip = true }: TriggerBadgePro
       case 'webhook':
         return <WebhookIcon {...iconProps} />
       case 'chat':
-        return <CheckCircle2 {...iconProps} />
+        return <MessageSquare {...iconProps} />
       case 'form':
-        return <CheckCircle2 {...iconProps} />
+        return <FileInput {...iconProps} />
       case 'schedule':
         return <Clock {...iconProps} />
       case 'manual':
         return <Hand {...iconProps} />
       case 'email':
         return <Mail {...iconProps} />
+      case 'mqtt':
+      case 'sqs':
+      case 'rabbitmq':
+      case 'redis':
+      case 'kafka':
+        return <Database {...iconProps} />
       case 'unknown':
       default:
         return <AlertCircle {...iconProps} />
@@ -63,6 +69,16 @@ export const TriggerBadge = ({ capability, showTooltip = true }: TriggerBadgePro
         return 'Manual'
       case 'email':
         return 'Email'
+      case 'mqtt':
+        return 'MQTT'
+      case 'sqs':
+        return 'SQS'
+      case 'rabbitmq':
+        return 'RabbitMQ'
+      case 'redis':
+        return 'Redis'
+      case 'kafka':
+        return 'Kafka'
       case 'unknown':
       default:
         return 'Unknown'

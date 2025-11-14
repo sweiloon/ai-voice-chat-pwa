@@ -1,21 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Loader2, Mic, MicOff, Send } from 'lucide-react'
+import { ArrowLeft, Loader2, Mic, MicOff, Send, FileInput } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { createSpeechRecognizer, getSpeechRecognition } from '@/lib/speech'
 import { useN8NStore } from '@/store/n8n'
 import { useSettingsStore } from '@/store/settings'
-import { getIncompatibilityMessage } from '@/n8n/triggerAnalyzer'
+import { analyzeTrigger, extractFormFields, getIncompatibilityMessage } from '@/n8n/triggerAnalyzer'
+import { FormRenderer } from './FormRenderer'
+import { triggerWebhook, type WebhookPayload } from '@/n8n/webhookClient'
+import { createN8NClient } from '@/n8n/client'
 
 export const WorkflowChat = () => {
   const { workflowId } = useParams<{ workflowId: string }>()
   const navigate = useNavigate()
   const { getWorkflowById, messages, sendMessage } = useN8NStore()
   const { sttLang } = useSettingsStore()
+  const n8nSettings = useN8NStore((state) => state.settings)
 
   const workflow = workflowId ? getWorkflowById(workflowId) : undefined
   const workflowMessages = workflowId ? messages[workflowId] || [] : []
+
+  // Detect if this is a form trigger workflow
+  const triggerCapability = workflow ? analyzeTrigger(workflow) : null
+  const isFormTrigger = triggerCapability?.type === 'form'
+  const formFields = isFormTrigger && workflow ? extractFormFields(workflow) : null
 
   const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening'>('idle')
   const [transcript, setTranscript] = useState('')
@@ -94,6 +103,61 @@ export const WorkflowChat = () => {
     }
   }
 
+  const handleFormSubmit = async (formData: Record<string, unknown>) => {
+    if (!workflow || !n8nSettings?.baseUrl) return
+
+    setSending(true)
+    try {
+      // Create N8N client and get webhook URL
+      const client = createN8NClient(n8nSettings.baseUrl, n8nSettings.apiKey!, n8nSettings.useProxy)
+      const webhookUrl = client.getWebhookUrl(workflow, n8nSettings.baseUrl)
+
+      if (!webhookUrl) {
+        toast.error('No webhook configured', {
+          description: 'This workflow does not have a webhook trigger configured'
+        })
+        setSending(false)
+        return
+      }
+
+      // Create payload with form data
+      const payload: WebhookPayload = {
+        chatInput: 'Form submission',
+        message: 'Form submission',
+        type: 'text',
+        timestamp: Date.now(),
+        formData,
+      }
+
+      // Trigger webhook
+      const response = await triggerWebhook(webhookUrl, payload, {
+        useProxy: n8nSettings.useProxy,
+        baseUrl: n8nSettings.baseUrl,
+        apiKey: n8nSettings.apiKey,
+        instanceType: n8nSettings.instanceType
+      })
+
+      if (response.success) {
+        toast.success('Form submitted successfully!', {
+          description: 'Your workflow has been triggered'
+        })
+      } else {
+        toast.error('Failed to submit form', {
+          description: response.message || 'Please try again'
+        })
+        throw new Error(response.message || 'Failed to submit form')
+      }
+    } catch (error) {
+      console.error('Failed to submit form:', error)
+      toast.error('Failed to submit form', {
+        description: error instanceof Error ? error.message : 'Please try again'
+      })
+      throw error // Re-throw so FormRenderer can handle it
+    } finally {
+      setSending(false)
+    }
+  }
+
   if (!workflow) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
@@ -103,6 +167,44 @@ export const WorkflowChat = () => {
     )
   }
 
+  // Render Form UI for form trigger workflows
+  if (isFormTrigger && formFields && formFields.length > 0) {
+    return (
+      <div className="flex h-full flex-col relative pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
+        {/* Fixed Header */}
+        <header className="fixed top-0 left-0 right-0 z-40 border-b border-border/50 bg-card/80 backdrop-blur-sm">
+          <div className="flex h-12 md:h-14 items-center gap-2 md:gap-3 px-3 md:px-4">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 rounded-lg transition-all hover:bg-secondary active:scale-95"
+            >
+              <ArrowLeft size={18} className="md:w-5 md:h-5" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <h2 className="truncate text-sm md:text-base font-semibold">{workflow.name}</h2>
+              <p className="text-[10px] md:text-xs text-muted-foreground hidden md:block">N8N Form Workflow</p>
+            </div>
+            <div className="shrink-0">
+              <FileInput size={18} className="md:w-5 md:h-5 text-primary" />
+            </div>
+          </div>
+        </header>
+
+        {/* Scrollable Form Area */}
+        <div className="flex-1 overflow-y-auto pt-[48px] md:pt-[56px]">
+          <FormRenderer
+            workflowName={workflow.name}
+            fields={formFields}
+            onSubmit={handleFormSubmit}
+            submitting={sending}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Render Chat UI for other trigger types
   return (
     <div className="flex h-full flex-col relative pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
       {/* Fixed Header */}
