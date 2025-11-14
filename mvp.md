@@ -2996,6 +2996,1108 @@ INSERT INTO marketplace_apps (
 
 ---
 
+## Phase 5: OAuth 自动化与工作流安装系统 (4-6周)
+
+**目标**: 实现"一键安装"工作流体验，自动处理 OAuth 授权，让用户无需手动配置 API 密钥
+
+**核心功能**:
+- ✅ 自动检测工作流所需的 OAuth 服务
+- ✅ 弹窗式 OAuth 授权流程（类似 Chrome 扩展安装）
+- ✅ 安全的 Token 存储与刷新机制
+- ✅ 运行时动态注入凭证到工作流
+- ✅ MVP 范围：Google 服务（Gmail, Calendar, Drive, Sheets）
+
+**技术挑战**:
+- ⚠️ N8N 无公开 API 管理凭证，需要自建 OAuth 服务
+- ⚠️ 工作流转换：从 credential nodes → HTTP Request nodes
+- ⚠️ 多租户 Token 管理与安全隔离
+
+---
+
+### 5.1 数据库扩展 - OAuth Token 存储
+
+**任务清单**:
+- [ ] 创建 `user_oauth_tokens` 表
+- [ ] 设置 RLS 策略确保 Token 隔离
+- [ ] 配置 Token 加密（Supabase Vault）
+- [ ] 创建 Token 刷新触发器
+
+#### Table: `user_oauth_tokens` (用户 OAuth 凭证)
+
+```sql
+-- 使用 Supabase MCP: apply_migration
+CREATE TABLE user_oauth_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  provider VARCHAR(50) NOT NULL, -- 'google', 'microsoft', 'slack', etc.
+  service VARCHAR(50) NOT NULL,  -- 'gmail', 'calendar', 'drive', etc.
+
+  -- OAuth 数据 (加密存储)
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  token_type VARCHAR(20) DEFAULT 'Bearer',
+  expires_at TIMESTAMP WITH TIME ZONE,
+
+  -- 授权范围
+  scopes TEXT[], -- ['https://www.googleapis.com/auth/gmail.readonly']
+
+  -- 元数据
+  granted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_refreshed_at TIMESTAMP WITH TIME ZONE,
+  revoked_at TIMESTAMP WITH TIME ZONE,
+
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+  -- 确保每个用户对每个服务只有一个有效 token
+  UNIQUE(user_id, provider, service)
+);
+
+-- 创建索引
+CREATE INDEX idx_oauth_tokens_user ON user_oauth_tokens(user_id);
+CREATE INDEX idx_oauth_tokens_provider ON user_oauth_tokens(provider, service);
+CREATE INDEX idx_oauth_tokens_expires ON user_oauth_tokens(expires_at)
+  WHERE revoked_at IS NULL;
+
+-- RLS 策略
+ALTER TABLE user_oauth_tokens ENABLE ROW LEVEL SECURITY;
+
+-- 用户只能访问自己的 tokens
+CREATE POLICY "Users can view own tokens"
+  ON user_oauth_tokens FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own tokens"
+  ON user_oauth_tokens FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own tokens"
+  ON user_oauth_tokens FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own tokens"
+  ON user_oauth_tokens FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- 自动更新 updated_at
+CREATE TRIGGER update_oauth_tokens_updated_at
+  BEFORE UPDATE ON user_oauth_tokens
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+```
+
+**MCP 命令**:
+```bash
+迁移名称: create_user_oauth_tokens_table
+SQL: 上面的完整 SQL
+```
+
+**Token 加密配置** (使用 Supabase Vault):
+```sql
+-- 创建加密密钥
+SELECT vault.create_secret('oauth-token-encryption-key');
+
+-- 创建加密函数
+CREATE OR REPLACE FUNCTION encrypt_token(token TEXT)
+RETURNS TEXT AS $$
+  SELECT encode(
+    pgsodium.crypto_secretbox_easy(
+      token::bytea,
+      (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'oauth-token-encryption-key')::bytea,
+      gen_random_bytes(24)
+    ),
+    'base64'
+  );
+$$ LANGUAGE SQL SECURITY DEFINER;
+
+-- 创建解密函数
+CREATE OR REPLACE FUNCTION decrypt_token(encrypted_token TEXT)
+RETURNS TEXT AS $$
+  SELECT convert_from(
+    pgsodium.crypto_secretbox_open_easy(
+      decode(encrypted_token, 'base64'),
+      (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'oauth-token-encryption-key')::bytea,
+      gen_random_bytes(24)
+    ),
+    'UTF8'
+  );
+$$ LANGUAGE SQL SECURITY DEFINER;
+```
+
+**测试检查点**:
+- [ ] 表创建成功
+- [ ] RLS 策略生效（用户无法看到其他人的 tokens）
+- [ ] 加密/解密函数正常工作
+- [ ] 索引创建成功
+- [ ] 可以通过 MCP 查询表结构
+
+**预估时间**: 1天
+**回滚方案**: DROP TABLE user_oauth_tokens CASCADE
+
+---
+
+### 5.2 服务检测系统 - 解析工作流依赖
+
+**任务清单**:
+- [ ] 创建工作流解析器（TypeScript）
+- [ ] 实现服务检测逻辑
+- [ ] 映射 N8N nodes → OAuth providers
+- [ ] 创建服务配置文件
+
+#### 工作流解析器实现
+
+**文件**: `src/n8n/serviceDetector.ts`
+
+```typescript
+import type { N8NWorkflow } from './types'
+
+export interface OAuthService {
+  provider: string      // 'google', 'microsoft', etc.
+  service: string       // 'gmail', 'calendar', etc.
+  scopes: string[]      // Required OAuth scopes
+  displayName: string   // 'Google Gmail'
+  icon?: string         // Service icon URL
+}
+
+// 服务配置映射
+const SERVICE_MAPPINGS: Record<string, OAuthService> = {
+  // Google Services
+  'n8n-nodes-base.gmail': {
+    provider: 'google',
+    service: 'gmail',
+    scopes: [
+      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/gmail.send'
+    ],
+    displayName: 'Google Gmail',
+    icon: '/icons/gmail.svg'
+  },
+  'n8n-nodes-base.googleCalendar': {
+    provider: 'google',
+    service: 'calendar',
+    scopes: ['https://www.googleapis.com/auth/calendar'],
+    displayName: 'Google Calendar',
+    icon: '/icons/calendar.svg'
+  },
+  'n8n-nodes-base.googleDrive': {
+    provider: 'google',
+    service: 'drive',
+    scopes: ['https://www.googleapis.com/auth/drive'],
+    displayName: 'Google Drive',
+    icon: '/icons/drive.svg'
+  },
+  'n8n-nodes-base.googleSheets': {
+    provider: 'google',
+    service: 'sheets',
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    displayName: 'Google Sheets',
+    icon: '/icons/sheets.svg'
+  },
+
+  // Microsoft Services (Phase 2)
+  'n8n-nodes-base.microsoftOutlook': {
+    provider: 'microsoft',
+    service: 'outlook',
+    scopes: ['Mail.ReadWrite', 'Mail.Send'],
+    displayName: 'Microsoft Outlook',
+    icon: '/icons/outlook.svg'
+  },
+
+  // 其他服务可后续添加...
+}
+
+/**
+ * 检测工作流所需的 OAuth 服务
+ */
+export function detectRequiredServices(workflow: N8NWorkflow): OAuthService[] {
+  const requiredServices: OAuthService[] = []
+  const seenServices = new Set<string>()
+
+  // 遍历工作流节点
+  for (const node of workflow.nodes || []) {
+    const nodeType = node.type
+
+    // 检查是否是需要 OAuth 的节点
+    if (SERVICE_MAPPINGS[nodeType]) {
+      const serviceKey = `${SERVICE_MAPPINGS[nodeType].provider}:${SERVICE_MAPPINGS[nodeType].service}`
+
+      // 避免重复
+      if (!seenServices.has(serviceKey)) {
+        seenServices.add(serviceKey)
+        requiredServices.push(SERVICE_MAPPINGS[nodeType])
+      }
+    }
+  }
+
+  return requiredServices
+}
+
+/**
+ * 检查用户是否已授权所有必需服务
+ */
+export async function checkUserAuthorizations(
+  userId: string,
+  requiredServices: OAuthService[]
+): Promise<{
+  authorized: OAuthService[]
+  missing: OAuthService[]
+}> {
+  const { data: tokens, error } = await supabase
+    .from('user_oauth_tokens')
+    .select('provider, service, expires_at, revoked_at')
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('Failed to fetch user tokens:', error)
+    return { authorized: [], missing: requiredServices }
+  }
+
+  const authorizedMap = new Map<string, boolean>()
+
+  // 标记已授权的服务
+  tokens?.forEach(token => {
+    const key = `${token.provider}:${token.service}`
+    const isValid = !token.revoked_at &&
+      (!token.expires_at || new Date(token.expires_at) > new Date())
+    authorizedMap.set(key, isValid)
+  })
+
+  // 分类服务
+  const authorized: OAuthService[] = []
+  const missing: OAuthService[] = []
+
+  requiredServices.forEach(service => {
+    const key = `${service.provider}:${service.service}`
+    if (authorizedMap.get(key)) {
+      authorized.push(service)
+    } else {
+      missing.push(service)
+    }
+  })
+
+  return { authorized, missing }
+}
+```
+
+**测试检查点**:
+- [ ] 能正确识别 Google Gmail 节点
+- [ ] 能正确识别 Google Calendar 节点
+- [ ] 能正确识别 Google Drive/Sheets 节点
+- [ ] 返回正确的 OAuth scopes
+- [ ] 避免重复检测同一服务
+- [ ] checkUserAuthorizations 正确返回授权状态
+
+**预估时间**: 2天
+**回滚方案**: 删除 serviceDetector.ts 文件
+
+---
+
+### 5.3 Google OAuth 集成 (MVP)
+
+**任务清单**:
+- [ ] 创建 Google Cloud 项目
+- [ ] 配置 OAuth 2.0 凭证
+- [ ] 实现 OAuth 授权流程
+- [ ] 实现 Token 刷新机制
+- [ ] 创建 OAuth 回调端点
+
+#### Google Cloud 配置
+
+**步骤**:
+1. 前往 [Google Cloud Console](https://console.cloud.google.com)
+2. 创建新项目或选择现有项目
+3. 启用所需 APIs:
+   - Gmail API
+   - Google Calendar API
+   - Google Drive API
+   - Google Sheets API
+4. 配置 OAuth 同意屏幕
+5. 创建 OAuth 2.0 客户端 ID（Web 应用）
+   - 授权重定向 URI: `https://yourdomain.com/api/oauth/callback/google`
+
+**环境变量** (`.env.local`):
+```bash
+# Google OAuth
+VITE_GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
+GOOGLE_OAUTH_REDIRECT_URI=https://yourdomain.com/api/oauth/callback/google
+```
+
+#### OAuth 授权流程实现
+
+**文件**: `api/oauth/google-auth.ts` (Vercel Serverless Function)
+
+```typescript
+import { OAuth2Client } from 'google-auth-library'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // 使用 service role key
+)
+
+const oauth2Client = new OAuth2Client(
+  process.env.VITE_GOOGLE_OAUTH_CLIENT_ID,
+  process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+  process.env.GOOGLE_OAUTH_REDIRECT_URI
+)
+
+/**
+ * 生成 OAuth 授权 URL
+ */
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const { userId, services, state } = req.body
+
+  // 验证用户身份
+  const authHeader = req.headers.authorization
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  // 根据请求的服务生成 scopes
+  const scopes = services.flatMap(service => {
+    switch(service) {
+      case 'gmail':
+        return [
+          'https://www.googleapis.com/auth/gmail.readonly',
+          'https://www.googleapis.com/auth/gmail.send'
+        ]
+      case 'calendar':
+        return ['https://www.googleapis.com/auth/calendar']
+      case 'drive':
+        return ['https://www.googleapis.com/auth/drive']
+      case 'sheets':
+        return ['https://www.googleapis.com/auth/spreadsheets']
+      default:
+        return []
+    }
+  })
+
+  // 生成授权 URL
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: 'offline', // 获取 refresh token
+    scope: scopes,
+    state: JSON.stringify({ userId, services, customState: state }),
+    prompt: 'consent' // 强制显示同意屏幕以获取 refresh token
+  })
+
+  return res.status(200).json({ authUrl })
+}
+```
+
+**文件**: `api/oauth/callback/google.ts` (OAuth 回调处理)
+
+```typescript
+import { OAuth2Client } from 'google-auth-library'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+const oauth2Client = new OAuth2Client(
+  process.env.VITE_GOOGLE_OAUTH_CLIENT_ID,
+  process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+  process.env.GOOGLE_OAUTH_REDIRECT_URI
+)
+
+/**
+ * 处理 OAuth 回调，存储 tokens
+ */
+export default async function handler(req, res) {
+  const { code, state } = req.query
+
+  if (!code || !state) {
+    return res.status(400).json({ error: 'Missing code or state' })
+  }
+
+  try {
+    // 解析 state
+    const { userId, services } = JSON.parse(state as string)
+
+    // 交换 code 换取 tokens
+    const { tokens } = await oauth2Client.getToken(code as string)
+
+    if (!tokens.access_token) {
+      throw new Error('No access token received')
+    }
+
+    // 计算过期时间
+    const expiresAt = tokens.expiry_date
+      ? new Date(tokens.expiry_date)
+      : new Date(Date.now() + 3600 * 1000) // 默认 1 小时
+
+    // 为每个服务存储 token
+    const tokenInserts = services.map(service => ({
+      user_id: userId,
+      provider: 'google',
+      service: service,
+      access_token: tokens.access_token!,
+      refresh_token: tokens.refresh_token || null,
+      token_type: tokens.token_type || 'Bearer',
+      expires_at: expiresAt.toISOString(),
+      scopes: tokens.scope?.split(' ') || [],
+      granted_at: new Date().toISOString()
+    }))
+
+    // 批量插入（UPSERT 以更新现有 tokens）
+    const { error } = await supabase
+      .from('user_oauth_tokens')
+      .upsert(tokenInserts, {
+        onConflict: 'user_id,provider,service'
+      })
+
+    if (error) {
+      console.error('Failed to store tokens:', error)
+      throw error
+    }
+
+    // 重定向回应用
+    return res.redirect(302, '/marketplace?oauth=success')
+
+  } catch (error) {
+    console.error('OAuth callback error:', error)
+    return res.redirect(302, '/marketplace?oauth=error')
+  }
+}
+```
+
+#### Token 刷新机制
+
+**文件**: `api/oauth/refresh-token.ts`
+
+```typescript
+import { OAuth2Client } from 'google-auth-library'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+/**
+ * 刷新过期的 access token
+ */
+export async function refreshGoogleToken(userId: string, service: string) {
+  // 获取存储的 refresh token
+  const { data: tokenData, error } = await supabase
+    .from('user_oauth_tokens')
+    .select('refresh_token, provider')
+    .eq('user_id', userId)
+    .eq('service', service)
+    .single()
+
+  if (error || !tokenData?.refresh_token) {
+    throw new Error('No refresh token found')
+  }
+
+  // 使用 refresh token 获取新的 access token
+  const oauth2Client = new OAuth2Client(
+    process.env.VITE_GOOGLE_OAUTH_CLIENT_ID,
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET
+  )
+
+  oauth2Client.setCredentials({
+    refresh_token: tokenData.refresh_token
+  })
+
+  const { credentials } = await oauth2Client.refreshAccessToken()
+
+  // 更新数据库
+  const expiresAt = credentials.expiry_date
+    ? new Date(credentials.expiry_date)
+    : new Date(Date.now() + 3600 * 1000)
+
+  await supabase
+    .from('user_oauth_tokens')
+    .update({
+      access_token: credentials.access_token!,
+      expires_at: expiresAt.toISOString(),
+      last_refreshed_at: new Date().toISOString()
+    })
+    .eq('user_id', userId)
+    .eq('service', service)
+
+  return credentials.access_token
+}
+```
+
+**测试检查点**:
+- [ ] Google Cloud 项目配置完成
+- [ ] OAuth 授权 URL 生成正确
+- [ ] 授权流程成功返回 tokens
+- [ ] Tokens 正确存储到数据库
+- [ ] Token 刷新机制正常工作
+- [ ] 过期 token 自动刷新
+
+**预估时间**: 5-7天
+**回滚方案**: 删除 OAuth API 端点，撤销 Google Cloud 配置
+
+---
+
+### 5.4 工作流安装流程 - 用户体验
+
+**任务清单**:
+- [ ] 创建授权确认对话框 UI
+- [ ] 实现服务权限展示
+- [ ] 实现弹窗式 OAuth 流程
+- [ ] 工作流安装状态管理
+- [ ] 授权成功/失败处理
+
+#### 授权确认对话框
+
+**文件**: `src/components/oauth/OAuthAuthorizationModal.tsx`
+
+```typescript
+import { useState } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { Shield, Check, AlertCircle } from 'lucide-react'
+import type { OAuthService } from '@/n8n/serviceDetector'
+
+interface Props {
+  open: boolean
+  onClose: () => void
+  services: OAuthService[]
+  workflowName: string
+  onAuthorize: () => void
+}
+
+export const OAuthAuthorizationModal = ({
+  open,
+  onClose,
+  services,
+  workflowName,
+  onAuthorize
+}: Props) => {
+  const [authorizing, setAuthorizing] = useState(false)
+
+  const handleAuthorize = async () => {
+    setAuthorizing(true)
+    try {
+      await onAuthorize()
+    } finally {
+      setAuthorizing(false)
+    }
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onClose}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 z-50">
+          {/* Header */}
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Shield className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1">
+              <Dialog.Title className="text-lg font-semibold">
+                授权访问
+              </Dialog.Title>
+              <p className="text-sm text-muted-foreground mt-1">
+                "{workflowName}" 需要访问以下服务
+              </p>
+            </div>
+          </div>
+
+          {/* Services List */}
+          <div className="space-y-3 mb-6">
+            {services.map((service, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30"
+              >
+                {service.icon && (
+                  <img src={service.icon} alt={service.displayName} className="w-8 h-8" />
+                )}
+                <div className="flex-1">
+                  <p className="font-medium text-sm">{service.displayName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {service.scopes.length} 项权限
+                  </p>
+                </div>
+                <Check className="w-4 h-4 text-muted-foreground" />
+              </div>
+            ))}
+          </div>
+
+          {/* Privacy Notice */}
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 mb-6">
+            <AlertCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              您的凭证将被加密存储，仅用于运行此工作流。您可以随时撤销授权。
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              disabled={authorizing}
+              className="flex-1 px-4 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-accent disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleAuthorize}
+              disabled={authorizing}
+              className="flex-1 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {authorizing ? '授权中...' : '授权'}
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+```
+
+#### 工作流安装流程集成
+
+**文件**: `src/store/marketplace.ts` (扩展)
+
+```typescript
+import { detectRequiredServices, checkUserAuthorizations } from '@/n8n/serviceDetector'
+import { supabase } from '@/lib/supabase'
+
+interface MarketplaceState {
+  // ... existing state
+
+  // OAuth state
+  pendingOAuthWorkflow?: string
+  showOAuthModal: boolean
+  requiredServices: OAuthService[]
+
+  // Actions
+  installWorkflowWithOAuth: (workflowId: string) => Promise<void>
+  authorizeServices: (services: OAuthService[]) => Promise<void>
+}
+
+export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
+  // ... existing implementation
+
+  showOAuthModal: false,
+  requiredServices: [],
+
+  async installWorkflowWithOAuth(workflowId: string) {
+    const workflow = get().apps.find(app => app.id === workflowId)
+    if (!workflow?.n8n_workflow) return
+
+    // 检测所需服务
+    const requiredServices = detectRequiredServices(workflow.n8n_workflow)
+
+    if (requiredServices.length === 0) {
+      // 无需 OAuth，直接安装
+      return get().installApp(workflowId)
+    }
+
+    // 检查已有授权
+    const userId = supabase.auth.getUser().data.user?.id
+    if (!userId) return
+
+    const { authorized, missing } = await checkUserAuthorizations(
+      userId,
+      requiredServices
+    )
+
+    if (missing.length === 0) {
+      // 已全部授权，直接安装
+      return get().installApp(workflowId)
+    }
+
+    // 显示授权对话框
+    set({
+      pendingOAuthWorkflow: workflowId,
+      requiredServices: missing,
+      showOAuthModal: true
+    })
+  },
+
+  async authorizeServices(services: OAuthService[]) {
+    const userId = supabase.auth.getUser().data.user?.id
+    if (!userId) return
+
+    // 调用 OAuth 授权 API
+    const response = await fetch('/api/oauth/google-auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabase.auth.session()?.access_token}`
+      },
+      body: JSON.stringify({
+        userId,
+        services: services.map(s => s.service),
+        state: get().pendingOAuthWorkflow
+      })
+    })
+
+    const { authUrl } = await response.json()
+
+    // 打开 OAuth 弹窗
+    const width = 600
+    const height = 700
+    const left = window.screen.width / 2 - width / 2
+    const top = window.screen.height / 2 - height / 2
+
+    const popup = window.open(
+      authUrl,
+      'OAuth Authorization',
+      `width=${width},height=${height},left=${left},top=${top}`
+    )
+
+    // 监听弹窗关闭
+    const checkPopup = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(checkPopup)
+        // 刷新授权状态
+        window.location.href = window.location.pathname + '?oauth=check'
+      }
+    }, 500)
+  }
+}))
+```
+
+**测试检查点**:
+- [ ] 授权对话框正确显示所需服务
+- [ ] OAuth 弹窗正常打开
+- [ ] 授权成功后正确存储 tokens
+- [ ] 授权失败有友好提示
+- [ ] 已授权服务跳过重复授权
+- [ ] 工作流安装流程完整
+
+**预估时间**: 4-5天
+**回滚方案**: 恢复原始 installApp 逻辑
+
+---
+
+### 5.5 凭证注入服务 - 运行时 Token 注入
+
+**任务清单**:
+- [ ] 创建 Token 注入 API
+- [ ] 工作流转换逻辑（credential → HTTP Request）
+- [ ] 实现动态 Token 替换
+- [ ] Token 过期自动刷新
+
+#### Token 注入 API
+
+**文件**: `api/workflows/inject-credentials.ts`
+
+```typescript
+import { createClient } from '@supabase/supabase-js'
+import { refreshGoogleToken } from '../oauth/refresh-token'
+
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+/**
+ * 为工作流注入用户的 OAuth tokens
+ */
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const { userId, workflow, service } = req.body
+
+  try {
+    // 获取用户 token
+    const { data: token, error } = await supabase
+      .from('user_oauth_tokens')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('service', service)
+      .single()
+
+    if (error || !token) {
+      return res.status(404).json({ error: 'Token not found' })
+    }
+
+    // 检查 token 是否过期
+    let accessToken = token.access_token
+    if (token.expires_at && new Date(token.expires_at) < new Date()) {
+      // Token 过期，刷新
+      accessToken = await refreshGoogleToken(userId, service)
+    }
+
+    // 返回可用的 access token
+    return res.status(200).json({
+      success: true,
+      accessToken,
+      tokenType: token.token_type
+    })
+
+  } catch (error) {
+    console.error('Token injection error:', error)
+    return res.status(500).json({ error: 'Failed to inject credentials' })
+  }
+}
+```
+
+#### 工作流转换逻辑
+
+**说明**:
+由于 N8N 无凭证管理 API，我们采用 **HTTP Request Node** 方式：
+- 不修改原始工作流的 credential nodes
+- 在执行时通过 webhook 传递 access token
+- 工作流中使用 `{{ $json.accessToken }}` 引用
+
+**示例工作流修改建议**:
+```json
+{
+  "nodes": [
+    {
+      "type": "n8n-nodes-base.webhook",
+      "name": "Webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "workflow-webhook-id",
+        "responseMode": "lastNode"
+      }
+    },
+    {
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Gmail API Call",
+      "parameters": {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "oAuth2Api",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.accessToken }}"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+**测试检查点**:
+- [ ] Token 注入 API 正常返回 access token
+- [ ] 过期 token 自动刷新
+- [ ] HTTP Request 节点可以使用注入的 token
+- [ ] 工作流执行成功调用 Google APIs
+
+**预估时间**: 3-4天
+**回滚方案**: 删除注入 API
+
+---
+
+### 5.6 前端组件 - 授权管理界面
+
+**任务清单**:
+- [ ] 创建"我的授权"页面
+- [ ] 显示已授权服务列表
+- [ ] 实现撤销授权功能
+- [ ] 授权状态指示器
+
+#### 授权管理页面
+
+**文件**: `src/routes/MyAuthorizations.tsx`
+
+```typescript
+import { useEffect, useState } from 'react'
+import { Trash2, Shield, AlertCircle } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+
+interface OAuthToken {
+  id: string
+  provider: string
+  service: string
+  granted_at: string
+  expires_at?: string
+  scopes: string[]
+}
+
+export const MyAuthorizations = () => {
+  const [tokens, setTokens] = useState<OAuthToken[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchTokens()
+  }, [])
+
+  const fetchTokens = async () => {
+    const { data, error } = await supabase
+      .from('user_oauth_tokens')
+      .select('*')
+      .is('revoked_at', null)
+      .order('granted_at', { ascending: false })
+
+    if (!error && data) {
+      setTokens(data)
+    }
+    setLoading(false)
+  }
+
+  const revokeAuthorization = async (tokenId: string) => {
+    const { error } = await supabase
+      .from('user_oauth_tokens')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('id', tokenId)
+
+    if (!error) {
+      setTokens(tokens.filter(t => t.id !== tokenId))
+    }
+  }
+
+  const getServiceIcon = (provider: string, service: string) => {
+    return `/icons/${service}.svg`
+  }
+
+  const getServiceName = (provider: string, service: string) => {
+    const names = {
+      gmail: 'Google Gmail',
+      calendar: 'Google Calendar',
+      drive: 'Google Drive',
+      sheets: 'Google Sheets'
+    }
+    return names[service] || `${provider} ${service}`
+  }
+
+  if (loading) {
+    return <div className="p-8 text-center">加载中...</div>
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Shield className="w-6 h-6" />
+          我的授权
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          管理您授权给工作流的第三方服务访问权限
+        </p>
+      </div>
+
+      {tokens.length === 0 ? (
+        <div className="text-center py-12 border border-dashed border-border rounded-lg">
+          <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+          <p className="text-muted-foreground">暂无授权服务</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            安装需要 OAuth 的工作流时会提示您授权
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {tokens.map(token => (
+            <div
+              key={token.id}
+              className="flex items-center gap-4 p-4 rounded-lg border border-border bg-card hover:bg-accent transition"
+            >
+              <img
+                src={getServiceIcon(token.provider, token.service)}
+                alt={token.service}
+                className="w-10 h-10"
+              />
+              <div className="flex-1">
+                <p className="font-medium">
+                  {getServiceName(token.provider, token.service)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  授权于 {new Date(token.granted_at).toLocaleDateString()}
+                </p>
+                {token.expires_at && (
+                  <p className="text-xs text-muted-foreground">
+                    过期时间: {new Date(token.expires_at).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => revokeAuthorization(token.id)}
+                className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition"
+                title="撤销授权"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-6 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-start gap-3">
+        <AlertCircle className="w-5 h-5 text-blue-500 mt-0.5" />
+        <div className="text-sm text-muted-foreground">
+          <p className="font-medium text-foreground mb-1">隐私保护</p>
+          <p>您的访问令牌经过 AES-256 加密存储，仅用于您安装的工作流。撤销授权后，相关工作流将无法访问该服务。</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+**测试检查点**:
+- [ ] 正确显示所有已授权服务
+- [ ] 撤销授权功能正常
+- [ ] 服务图标正确显示
+- [ ] 过期时间正确显示
+- [ ] 空状态友好展示
+
+**预估时间**: 2-3天
+**回滚方案**: 删除授权管理页面
+
+---
+
+## Phase 5 完成检查清单
+
+### 数据库
+- [ ] `user_oauth_tokens` 表创建成功
+- [ ] RLS 策略正常工作
+- [ ] Token 加密/解密函数正常
+- [ ] 索引创建成功
+
+### OAuth 集成
+- [ ] Google Cloud 项目配置完成
+- [ ] OAuth 授权流程正常工作
+- [ ] Token 存储和刷新机制正常
+- [ ] 回调处理正确
+
+### 服务检测
+- [ ] 工作流解析器正确识别节点
+- [ ] 服务映射配置完整
+- [ ] 授权状态检查准确
+
+### 用户界面
+- [ ] 授权确认对话框功能完整
+- [ ] OAuth 弹窗流程顺畅
+- [ ] 授权管理页面正常工作
+- [ ] 撤销授权功能正常
+
+### 安全性
+- [ ] Tokens 加密存储
+- [ ] RLS 策略防止跨用户访问
+- [ ] OAuth state 参数验证
+- [ ] 安全的 token 刷新机制
+
+### 测试
+- [ ] 端到端授权流程测试通过
+- [ ] Token 过期刷新测试通过
+- [ ] 多服务授权测试通过
+- [ ] 撤销授权测试通过
+- [ ] 工作流执行测试通过（使用注入的 tokens）
+
+**预估时间**: 4-6周
+**回滚方案**:
+1. 删除 `user_oauth_tokens` 表
+2. 删除所有 OAuth API 端点
+3. 移除授权相关 UI 组件
+4. 恢复原始工作流安装逻辑
+
+---
+
 ## MVP 最终部署检查清单
 
 ### 功能完整性
