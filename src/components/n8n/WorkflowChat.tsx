@@ -168,7 +168,8 @@ export const WorkflowChat = () => {
   }
 
   // Render Form UI for form trigger workflows
-  if (isFormTrigger && formFields && formFields.length > 0) {
+  // Show form UI for ANY form trigger, even if fields are empty
+  if (isFormTrigger) {
     return (
       <div className="flex h-full flex-col relative pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
         {/* Fixed Header */}
@@ -195,7 +196,7 @@ export const WorkflowChat = () => {
         <div className="flex-1 overflow-y-auto pt-[48px] md:pt-[56px]">
           <FormRenderer
             workflowName={workflow.name}
-            fields={formFields}
+            fields={formFields || []}
             onSubmit={handleFormSubmit}
             submitting={sending}
           />

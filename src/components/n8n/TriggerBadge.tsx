@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, AlertCircle, Clock, Hand, Mail, Webhook as WebhookIcon, MessageSquare, FileInput, Database } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertCircle, Clock, Hand, Mail, Webhook as WebhookIcon, MessageSquare, FileInput, Database, Rss, FolderOpen, AlertTriangle, Blocks } from 'lucide-react'
 import type { TriggerType, TriggerCapability } from '@/n8n/triggerAnalyzer'
 
 interface TriggerBadgeProps {
@@ -48,6 +48,14 @@ export const TriggerBadge = ({ capability, showTooltip = true }: TriggerBadgePro
       case 'redis':
       case 'kafka':
         return <Database {...iconProps} />
+      case 'rss':
+        return <Rss {...iconProps} />
+      case 'file':
+        return <FolderOpen {...iconProps} />
+      case 'error':
+        return <AlertTriangle {...iconProps} />
+      case 'app-specific':
+        return <Blocks {...iconProps} />
       case 'unknown':
       default:
         return <AlertCircle {...iconProps} />
@@ -55,7 +63,7 @@ export const TriggerBadge = ({ capability, showTooltip = true }: TriggerBadgePro
   }
 
   // Label text for trigger type
-  const getLabel = (type: TriggerType): string => {
+  const getLabel = (type: TriggerType, appName?: string): string => {
     switch (type) {
       case 'webhook':
         return 'Webhook'
@@ -79,6 +87,14 @@ export const TriggerBadge = ({ capability, showTooltip = true }: TriggerBadgePro
         return 'Redis'
       case 'kafka':
         return 'Kafka'
+      case 'rss':
+        return 'RSS'
+      case 'file':
+        return 'File'
+      case 'error':
+        return 'Error'
+      case 'app-specific':
+        return appName || 'App'
       case 'unknown':
       default:
         return 'Unknown'
@@ -95,7 +111,7 @@ export const TriggerBadge = ({ capability, showTooltip = true }: TriggerBadgePro
         aria-label={`Trigger type: ${capability.description}`}
       >
         {getIcon(capability.type)}
-        <span className="font-semibold">{getLabel(capability.type)}</span>
+        <span className="font-semibold">{getLabel(capability.type, capability.appName)}</span>
         {isCompatible ? (
           <CheckCircle2 size={10} className="ml-0.5 md:w-3 md:h-3" />
         ) : capability.type !== 'unknown' ? (

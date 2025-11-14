@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { AlertCircle, Loader2, RefreshCw, Workflow as WorkflowIcon } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { useN8NStore } from '@/store/n8n'
 import { WorkflowCard } from './WorkflowCard'
@@ -7,11 +8,33 @@ import { WorkflowCard } from './WorkflowCard'
 export const WorkflowList = () => {
   const { workflows, loadingWorkflows, settings, fetchWorkflows, refreshWorkflows } = useN8NStore()
 
+  // Auto-fetch workflows on mount or when connection is restored
   useEffect(() => {
-    if (settings.connected && workflows.length === 0 && !loadingWorkflows) {
-      void fetchWorkflows()
+    if (settings.connected && !loadingWorkflows) {
+      // Check if we need to refresh (stale data or first load)
+      const now = Date.now()
+      const lastSync = settings.lastSync || 0
+      const isStale = now - lastSync > 5 * 60 * 1000 // 5 minutes
+      const isFirstLoad = workflows.length === 0
+
+      if (isFirstLoad || isStale) {
+        void fetchWorkflows()
+      }
     }
-  }, [settings.connected, workflows.length, loadingWorkflows, fetchWorkflows])
+  }, [settings.connected, loadingWorkflows, fetchWorkflows, settings.lastSync, workflows.length])
+
+  const handleRefresh = async () => {
+    try {
+      await refreshWorkflows()
+      toast.success('Workflows refreshed', {
+        description: `${workflows.length} workflow${workflows.length !== 1 ? 's' : ''} loaded`
+      })
+    } catch (error) {
+      toast.error('Failed to refresh workflows', {
+        description: 'Please check your connection and try again'
+      })
+    }
+  }
 
   if (!settings.baseUrl || !settings.apiKey) {
     return (
@@ -86,11 +109,16 @@ export const WorkflowList = () => {
             </h1>
             <p className="text-xs text-muted-foreground">
               {workflows.length} {workflows.length === 1 ? 'workflow' : 'workflows'}
+              {settings.lastSync && (
+                <span className="ml-2">
+                  • Updated {new Date(settings.lastSync).toLocaleTimeString()}
+                </span>
+              )}
             </p>
           </div>
           <button
             type="button"
-            onClick={() => void refreshWorkflows()}
+            onClick={handleRefresh}
             className="inline-flex items-center gap-1.5 md:gap-2 rounded-lg border border-border/50 bg-card/50 backdrop-blur-sm px-3 py-2 text-xs md:text-sm font-medium transition-all hover:bg-card hover:shadow-sm hover:border-primary/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={loadingWorkflows}
           >

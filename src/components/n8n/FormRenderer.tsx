@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { Loader2, Send, CheckCircle2 } from 'lucide-react'
 import type { N8NFormField } from '@/n8n/types'
 
@@ -10,19 +10,29 @@ interface FormRendererProps {
 }
 
 /**
+ * Get initial/default form values from fields
+ */
+const getDefaultFormData = (fields: N8NFormField[]): Record<string, unknown> => {
+  const initial: Record<string, unknown> = {}
+  fields.forEach(field => {
+    initial[field.name] = field.defaultValue ?? (field.type === 'checkbox' ? false : '')
+  })
+  return initial
+}
+
+/**
  * FormRenderer - Render N8N form trigger fields
  *
  * Displays form fields from N8N Form Trigger node and submits data to workflow
  */
 export const FormRenderer = ({ workflowName, fields, onSubmit, submitting = false }: FormRendererProps) => {
-  const [formData, setFormData] = useState<Record<string, unknown>>(() => {
-    const initial: Record<string, unknown> = {}
-    fields.forEach(field => {
-      initial[field.name] = field.defaultValue ?? (field.type === 'checkbox' ? false : '')
-    })
-    return initial
-  })
+  const [formData, setFormData] = useState<Record<string, unknown>>(() => getDefaultFormData(fields))
   const [submitted, setSubmitted] = useState(false)
+
+  // Reset form when fields change (e.g., after workflow refresh)
+  useEffect(() => {
+    setFormData(getDefaultFormData(fields))
+  }, [fields])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -30,18 +40,16 @@ export const FormRenderer = ({ workflowName, fields, onSubmit, submitting = fals
     try {
       await onSubmit(formData)
       setSubmitted(true)
-      // Reset form after 3 seconds
+
+      // Show success state briefly, then reset form
       setTimeout(() => {
         setSubmitted(false)
-        // Reset to default values
-        const reset: Record<string, unknown> = {}
-        fields.forEach(field => {
-          reset[field.name] = field.defaultValue ?? (field.type === 'checkbox' ? false : '')
-        })
-        setFormData(reset)
-      }, 3000)
+        // Reset to default values immediately
+        setFormData(getDefaultFormData(fields))
+      }, 2000) // Reduced from 3s to 2s
     } catch (error) {
       console.error('Form submission error:', error)
+      // Don't show submitted state on error
     }
   }
 

@@ -1,8 +1,9 @@
 # CLAUDE.md - Real-Time Development Tracking
 
-**最后更新**: 2025-01-12
+**最后更新**: 2025-01-14
 **项目状态**: 🚧 开发中 (MVP Phase)
 **当前版本**: 0.1.0-alpha
+**GitHub**: 自动同步 ✅
 
 ---
 
@@ -58,6 +59,9 @@
 - ✅ Webhook 触发
 - ✅ 代理服务器 (解决 CORS)
 - ✅ 实例类型切换
+- ✅ 精确的触发器类型检测 (Webhook, Chat, Form, Schedule, Manual, Email, MQTT, SQS, RabbitMQ, Redis, Kafka)
+- ✅ Form Trigger 支持 (自动显示表单而非聊天界面)
+- ✅ 表单字段提取和渲染
 
 ### UI/UX
 - ✅ 响应式设计
@@ -68,6 +72,32 @@
 ---
 
 ## 📝 开发日志
+
+### 2025-01-14
+
+**N8N Trigger Detection 和 Form Support 完成**
+- 实现了精确的节点类型检测 (使用 NODE_TYPE_MAP)
+- 添加了对更多触发器类型的支持 (MQTT, SQS, RabbitMQ, Redis, Kafka)
+- 创建了 FormRenderer 组件用于 N8N 表单触发器
+- 在 WorkflowChat 中实现了条件渲染 (表单 vs 聊天界面)
+- 添加了所有触发器类型的专用图标
+
+**技术改进**:
+- 两层检测策略: 精确匹配优先,然后子字符串回退
+- 从 N8N Form Trigger 节点参数中提取表单字段
+- 使用现有 webhook 集成模式处理表单提交
+- 所有 TypeScript 错误已修复,构建成功
+
+**自动化改进**:
+- 实现了自动 GitHub 推送工作流
+- 更新了 CLAUDE.md 文档管理策略
+
+**下一步计划**:
+- 开始 Supabase 项目设置
+- 创建数据库架构
+- 实现用户认证
+
+---
 
 ### 2025-01-12
 
@@ -268,12 +298,59 @@ test: 测试相关
 chore: 构建/工具相关
 ```
 
+### 自动 Git 推送工作流 🚀
+
+**重要**: 为了保持代码同步,Claude 在每次完成工作后会自动执行以下操作:
+
+1. **自动提交**:
+   - 当文件被修改或新建后
+   - 使用描述性的提交信息
+   - 包含 Claude Code 签名
+
+2. **自动推送到 GitHub**:
+   ```bash
+   git add .
+   git commit -m "descriptive message"
+   git push
+   ```
+
+3. **触发条件**:
+   - 功能完成后
+   - Bug 修复后
+   - 文档更新后
+   - 构建成功后
+
+4. **CLAUDE.md 更新流程**:
+   - 每次重大更改后自动更新开发日志
+   - 更新已完成功��列表
+   - 记录技术决策和问题解决
+   - 推送更新到 GitHub
+
+**指令给 Claude**:
+```
+每当你完成以下任何操作时,必须自动推送到 GitHub:
+- 修改或创建代码文件
+- 修复 Bug
+- 实现新功能
+- 更新文档
+- 构建成功
+
+步骤:
+1. git add . (添加所有更改)
+2. git commit -m "descriptive message" (提交)
+3. git push (推送到 GitHub)
+4. 更新 CLAUDE.md 的开发日志
+5. 再次 commit 和 push CLAUDE.md
+```
+
 ### Code Review 清单
 - [ ] 代码遵循项目规范
 - [ ] 所有测试通过
 - [ ] 文档已更新
 - [ ] 无明显性能问题
 - [ ] 安全性检查通过
+- [ ] ✅ 已推送到 GitHub
+- [ ] ✅ CLAUDE.md 已更新
 
 ---
 
@@ -342,6 +419,7 @@ chore: 构建/工具相关
 2. 每次架构决策后记录 ADR
 3. 每次遇到重大问题后更新已知问题
 4. 每天更新开发日志 (如果有进展)
+5. **每次更新后自动推送到 GitHub** ⚡
 
 ---
 
@@ -421,7 +499,8 @@ npm install @supabase/supabase-js
 
 **项目负责人**: [你的名字]
 **技术顾问**: Claude (AI Assistant)
-**最后更新时间**: 2025-01-12
+**最后更新时间**: 2025-01-14
+**自动同步**: GitHub ✅
 
 ---
 

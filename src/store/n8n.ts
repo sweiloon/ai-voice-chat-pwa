@@ -95,6 +95,8 @@ export const useN8NStore = create<N8NState>()(
       },
 
       async refreshWorkflows() {
+        // Force clear existing workflows and fetch fresh data
+        set({ workflows: [], loadingWorkflows: true })
         await get().fetchWorkflows()
       },
 

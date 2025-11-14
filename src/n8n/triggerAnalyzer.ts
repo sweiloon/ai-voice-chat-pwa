@@ -15,6 +15,10 @@ export type TriggerType =
   | 'rabbitmq'     // RabbitMQ trigger
   | 'redis'        // Redis trigger
   | 'kafka'        // Kafka trigger
+  | 'rss'          // RSS Feed trigger
+  | 'file'         // File system trigger
+  | 'error'        // Error trigger
+  | 'app-specific' // App-specific trigger (GitHub, Slack, etc.)
   | 'unknown'      // Unable to determine
 
 /**
@@ -25,6 +29,7 @@ const NODE_TYPE_MAP: Record<string, TriggerType> = {
   // Webhook triggers
   'n8n-nodes-base.webhook': 'webhook',
   '@n8n/n8n-nodes-langchain.webhookTrigger': 'webhook',
+  'n8n-nodes-base.ssetrigger': 'webhook',
 
   // Chat triggers
   'n8n-nodes-base.chatTrigger': 'chat',
@@ -42,6 +47,8 @@ const NODE_TYPE_MAP: Record<string, TriggerType> = {
   // Manual triggers
   'n8n-nodes-base.manualTrigger': 'manual',
   'n8n-nodes-base.start': 'manual',
+  'n8n-nodes-base.manualworkflowtrigger': 'manual',
+  'n8n-nodes-base.activationtrigger': 'manual',
 
   // Email triggers
   'n8n-nodes-base.emailTrigger': 'email',
@@ -54,6 +61,20 @@ const NODE_TYPE_MAP: Record<string, TriggerType> = {
   'n8n-nodes-base.rabbitmqTrigger': 'rabbitmq',
   'n8n-nodes-base.redisTrigger': 'redis',
   'n8n-nodes-base.kafkaTrigger': 'kafka',
+
+  // RSS/Feed triggers
+  'n8n-nodes-base.rssFeedRead': 'rss',
+  'n8n-nodes-base.rssfeedreadtrigger': 'rss',
+
+  // File system triggers
+  'n8n-nodes-base.localFileTrigger': 'file',
+  'n8n-nodes-base.localfiletrigger': 'file',
+
+  // Error/Workflow triggers
+  'n8n-nodes-base.errorTrigger': 'error',
+  'n8n-nodes-base.errortrigger': 'error',
+  'n8n-nodes-base.n8nTrigger': 'webhook',
+  'n8n-nodes-base.n8ntrigger': 'webhook',
 }
 
 /**
@@ -80,6 +101,49 @@ export interface TriggerCapability {
 
   /** Recommended action for user */
   recommendation?: string
+
+  /** Display name for app-specific triggers (e.g., "GitHub", "Slack") */
+  appName?: string
+}
+
+/**
+ * Extract app name from app-specific trigger node type
+ * Examples:
+ *   - "n8n-nodes-base.githubTrigger" -> "GitHub"
+ *   - "n8n-nodes-base.slackTrigger" -> "Slack"
+ *   - "@n8n/n8n-nodes-langchain.mcptrigger" -> "MCP"
+ */
+function extractAppName(nodeType: string): string {
+  // Remove common prefixes
+  const cleaned = nodeType
+    .replace('n8n-nodes-base.', '')
+    .replace('@n8n/n8n-nodes-langchain.', '')
+    .replace('Trigger', '')
+    .replace('trigger', '')
+
+  // Capitalize first letter
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+}
+
+/**
+ * Detect if a node type is an app-specific trigger
+ * Pattern: ends with "Trigger" or "trigger" and contains app name
+ */
+function isAppSpecificTrigger(nodeType: string): boolean {
+  const lower = nodeType.toLowerCase()
+
+  // Must end with "trigger"
+  if (!lower.endsWith('trigger')) return false
+
+  // Exclude known core triggers
+  const excludeList = [
+    'webhook', 'chat', 'form', 'schedule', 'manual', 'email',
+    'mqtt', 'sqs', 'rabbitmq', 'redis', 'kafka', 'rss', 'cron',
+    'interval', 'imap', 'sse', 'error', 'activation', 'local',
+    'n8n', 'workflow'
+  ]
+
+  return !excludeList.some(excluded => lower.includes(excluded))
 }
 
 /**
@@ -113,6 +177,11 @@ export function analyzeTrigger(workflow: N8NWorkflow): TriggerCapability {
   const exactMatch = NODE_TYPE_MAP[nodeType]
   if (exactMatch) {
     return getTriggerCapabilityByType(exactMatch, nodeType)
+  }
+
+  // Check if it's an app-specific trigger (GitHub, Slack, etc.)
+  if (isAppSpecificTrigger(nodeType)) {
+    return getTriggerCapabilityByType('app-specific', nodeType)
   }
 
   // Fallback to substring matching for unlisted node types
@@ -264,6 +333,52 @@ function getTriggerCapabilityByType(type: TriggerType, nodeType: string): Trigge
         recommendation: 'Not compatible with text/voice input from this app'
       }
 
+    case 'rss':
+      return {
+        type: 'rss',
+        canReceiveInput: false,
+        canReceiveText: false,
+        canReceiveVoice: false,
+        setupRequired: false,
+        description: 'RSS Feed trigger - monitors RSS feeds',
+        recommendation: 'Not compatible with text/voice input from this app'
+      }
+
+    case 'file':
+      return {
+        type: 'file',
+        canReceiveInput: false,
+        canReceiveText: false,
+        canReceiveVoice: false,
+        setupRequired: false,
+        description: 'File trigger - monitors file system changes',
+        recommendation: 'Not compatible with text/voice input from this app'
+      }
+
+    case 'error':
+      return {
+        type: 'error',
+        canReceiveInput: false,
+        canReceiveText: false,
+        canReceiveVoice: false,
+        setupRequired: false,
+        description: 'Error trigger - activated on workflow errors',
+        recommendation: 'Not compatible with text/voice input from this app'
+      }
+
+    case 'app-specific':
+      const appName = extractAppName(nodeType)
+      return {
+        type: 'app-specific',
+        canReceiveInput: false,
+        canReceiveText: false,
+        canReceiveVoice: false,
+        setupRequired: true,
+        description: `${appName} trigger - monitors ${appName} events`,
+        recommendation: 'Not compatible with text/voice input from this app',
+        appName
+      }
+
     default:
       return {
         type: 'unknown',
@@ -336,26 +451,65 @@ export function extractFormFields(workflow: N8NWorkflow): N8NFormField[] | null 
 
   // Try to extract form fields from node parameters
   const parameters = firstNode.parameters as Record<string, unknown> | undefined
-  if (!parameters) return []
+  if (!parameters) {
+    // Return default generic message field if no parameters
+    return getDefaultFormFields()
+  }
 
-  // N8N Form Trigger stores fields in 'formFields' parameter
-  const formFields = parameters.formFields as Array<Record<string, unknown>> | undefined
-  if (!formFields || !Array.isArray(formFields)) return []
+  // Try multiple extraction strategies
+  let formFields: Array<Record<string, unknown>> | undefined
+
+  // Strategy 1: Try 'formFields' parameter (most common)
+  formFields = parameters.formFields as Array<Record<string, unknown>> | undefined
+
+  // Strategy 2: Try 'fields' parameter (alternative naming)
+  if (!formFields || !Array.isArray(formFields)) {
+    formFields = parameters.fields as Array<Record<string, unknown>> | undefined
+  }
+
+  // Strategy 3: Try 'form' parameter (nested structure)
+  if (!formFields || !Array.isArray(formFields)) {
+    const formParam = parameters.form as Record<string, unknown> | undefined
+    if (formParam) {
+      formFields = formParam.fields as Array<Record<string, unknown>> | undefined
+    }
+  }
+
+  // If all strategies failed, return default generic form
+  if (!formFields || !Array.isArray(formFields) || formFields.length === 0) {
+    console.debug('No form fields found in parameters, using default form')
+    return getDefaultFormFields()
+  }
 
   // Map N8N form fields to our format
-  return formFields.map((field) => ({
-    name: String(field.fieldLabel || field.name || 'field'),
-    label: String(field.fieldLabel || field.name || 'Field'),
-    type: mapN8NFieldType(String(field.fieldType || 'text')),
-    required: Boolean(field.requiredField || false),
-    options: field.fieldOptions
-      ? String(field.fieldOptions)
+  return formFields.map((field, index) => ({
+    name: String(field.fieldLabel || field.name || field.fieldName || `field_${index}`),
+    label: String(field.fieldLabel || field.label || field.name || `Field ${index + 1}`),
+    type: mapN8NFieldType(String(field.fieldType || field.type || 'text')),
+    required: Boolean(field.requiredField || field.required || false),
+    options: field.fieldOptions || field.options
+      ? String(field.fieldOptions || field.options)
           .split(',')
           .map((o) => o.trim())
           .filter(Boolean)
       : undefined,
-    defaultValue: field.defaultValue,
+    defaultValue: field.defaultValue || field.default,
   }))
+}
+
+/**
+ * Get default form fields when extraction fails
+ * Returns a generic message input field
+ */
+function getDefaultFormFields(): N8NFormField[] {
+  return [
+    {
+      name: 'message',
+      label: 'Message',
+      type: 'textarea',
+      required: true,
+    }
+  ]
 }
 
 /**
