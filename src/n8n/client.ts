@@ -128,6 +128,23 @@ export class N8NClient {
       const response = await this.client.get<N8NWorkflowsResponse>('/api/v1/workflows')
       const allWorkflows = response.data.data || []
 
+      // 📊 DEBUG: Log first workflow structure to understand N8N API response
+      if (allWorkflows.length > 0) {
+        const firstWorkflow = allWorkflows[0]
+        console.log('📊 N8N API Response - First Workflow:', {
+          id: firstWorkflow.id,
+          name: firstWorkflow.name,
+          active: firstWorkflow.active,
+          nodeCount: firstWorkflow.nodes?.length || 0,
+          firstNode: firstWorkflow.nodes?.[0] ? {
+            name: firstWorkflow.nodes[0].name,
+            type: firstWorkflow.nodes[0].type,
+            typeVersion: firstWorkflow.nodes[0].typeVersion,
+            parameterKeys: firstWorkflow.nodes[0].parameters ? Object.keys(firstWorkflow.nodes[0].parameters) : []
+          } : null
+        })
+      }
+
       // Filter active workflows only
       if (activeOnly) {
         return allWorkflows.filter(workflow => workflow.active === true)

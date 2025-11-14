@@ -173,68 +173,106 @@ export function analyzeTrigger(workflow: N8NWorkflow): TriggerCapability {
 
   const nodeType = firstNode.type
 
+  // Normalize node type for better matching
+  // 1. Remove version suffix (@1, @2, etc.)
+  // 2. Handle case sensitivity
+  const nodeTypeClean = nodeType.replace(/@\d+$/, '')
+  const nodeTypeLowerClean = nodeTypeClean.toLowerCase()
+
+  // 🔍 DEBUG: Log trigger detection process
+  console.log('🔍 Trigger Analysis:', {
+    workflowId: workflow.id,
+    workflowName: workflow.name,
+    nodeType: nodeType,
+    nodeTypeClean: nodeTypeClean,
+    nodeTypeLower: nodeTypeLowerClean,
+    nodeName: firstNode.name,
+    exactMatchFound: !!NODE_TYPE_MAP[nodeType],
+    exactMatchType: NODE_TYPE_MAP[nodeType] || null
+  })
+
   // Try exact match first (most accurate)
-  const exactMatch = NODE_TYPE_MAP[nodeType]
+  let exactMatch = NODE_TYPE_MAP[nodeType]
+
+  // If no exact match, try case-insensitive match
+  if (!exactMatch) {
+    const matchedKey = Object.keys(NODE_TYPE_MAP).find(
+      key => key.toLowerCase() === nodeTypeLowerClean
+    )
+    if (matchedKey) {
+      exactMatch = NODE_TYPE_MAP[matchedKey]
+    }
+  }
+
   if (exactMatch) {
+    console.log('✅ Exact match found:', exactMatch)
     return getTriggerCapabilityByType(exactMatch, nodeType)
   }
 
   // Check if it's an app-specific trigger (GitHub, Slack, etc.)
   if (isAppSpecificTrigger(nodeType)) {
+    console.log('✅ App-specific trigger detected')
     return getTriggerCapabilityByType('app-specific', nodeType)
   }
 
   // Fallback to substring matching for unlisted node types
-  const nodeTypeLower = nodeType.toLowerCase()
+  // Use normalized lowercase version
+  console.log('🔄 Trying substring matching...')
 
   // Webhook trigger - best for text/voice input
-  if (nodeTypeLower.includes('webhook')) {
+  if (nodeTypeLowerClean.includes('webhook')) {
     return getTriggerCapabilityByType('webhook', nodeType)
   }
 
   // Chat trigger - designed for chat messages
-  if (nodeTypeLower.includes('chat')) {
+  if (nodeTypeLowerClean.includes('chat')) {
     return getTriggerCapabilityByType('chat', nodeType)
   }
 
   // Form trigger - accepts form submissions
-  if (nodeTypeLower.includes('form')) {
+  if (nodeTypeLowerClean.includes('form')) {
     return getTriggerCapabilityByType('form', nodeType)
   }
 
   // Schedule/Cron trigger - time-based, no external input
-  if (nodeTypeLower.includes('schedule') || nodeTypeLower.includes('cron') || nodeTypeLower.includes('interval')) {
+  if (nodeTypeLowerClean.includes('schedule') || nodeTypeLowerClean.includes('cron') || nodeTypeLowerClean.includes('interval')) {
     return getTriggerCapabilityByType('schedule', nodeType)
   }
 
   // Manual trigger - user clicks in N8N to run
-  if (nodeTypeLower.includes('manual') || nodeTypeLower.includes('start')) {
+  if (nodeTypeLowerClean.includes('manual') || nodeTypeLowerClean.includes('start')) {
     return getTriggerCapabilityByType('manual', nodeType)
   }
 
   // Email trigger
-  if (nodeTypeLower.includes('email') || nodeTypeLower.includes('imap')) {
+  if (nodeTypeLowerClean.includes('email') || nodeTypeLowerClean.includes('imap')) {
     return getTriggerCapabilityByType('email', nodeType)
   }
 
   // Message queue triggers
-  if (nodeTypeLower.includes('mqtt')) {
+  if (nodeTypeLowerClean.includes('mqtt')) {
     return getTriggerCapabilityByType('mqtt', nodeType)
   }
-  if (nodeTypeLower.includes('sqs')) {
+  if (nodeTypeLowerClean.includes('sqs')) {
     return getTriggerCapabilityByType('sqs', nodeType)
   }
-  if (nodeTypeLower.includes('rabbitmq')) {
+  if (nodeTypeLowerClean.includes('rabbitmq')) {
     return getTriggerCapabilityByType('rabbitmq', nodeType)
   }
-  if (nodeTypeLower.includes('redis')) {
+  if (nodeTypeLowerClean.includes('redis')) {
     return getTriggerCapabilityByType('redis', nodeType)
   }
-  if (nodeTypeLower.includes('kafka')) {
+  if (nodeTypeLowerClean.includes('kafka')) {
     return getTriggerCapabilityByType('kafka', nodeType)
   }
 
   // Unknown trigger type
+  console.warn('⚠️ Unknown trigger type detected:', {
+    nodeType: firstNode.type,
+    nodeName: firstNode.name,
+    suggestion: 'This trigger type is not in NODE_TYPE_MAP and did not match any substring patterns'
+  })
+
   return {
     type: 'unknown',
     canReceiveInput: false,
@@ -451,7 +489,19 @@ export function extractFormFields(workflow: N8NWorkflow): N8NFormField[] | null 
 
   // Try to extract form fields from node parameters
   const parameters = firstNode.parameters as Record<string, unknown> | undefined
+
+  // 📋 DEBUG: Log form field extraction attempt
+  console.log('📋 Form Field Extraction:', {
+    workflowId: workflow.id,
+    workflowName: workflow.name,
+    nodeType: firstNode.type,
+    hasParameters: !!parameters,
+    parameterKeys: parameters ? Object.keys(parameters) : [],
+    parametersSnapshot: parameters ? JSON.stringify(parameters, null, 2).substring(0, 500) + '...' : null
+  })
+
   if (!parameters) {
+    console.warn('⚠️ No parameters found, using default form fields')
     // Return default generic message field if no parameters
     return getDefaultFormFields()
   }
@@ -461,10 +511,16 @@ export function extractFormFields(workflow: N8NWorkflow): N8NFormField[] | null 
 
   // Strategy 1: Try 'formFields' parameter (most common)
   formFields = parameters.formFields as Array<Record<string, unknown>> | undefined
+  if (formFields && Array.isArray(formFields)) {
+    console.log('✅ Strategy 1 success: parameters.formFields')
+  }
 
   // Strategy 2: Try 'fields' parameter (alternative naming)
   if (!formFields || !Array.isArray(formFields)) {
     formFields = parameters.fields as Array<Record<string, unknown>> | undefined
+    if (formFields && Array.isArray(formFields)) {
+      console.log('✅ Strategy 2 success: parameters.fields')
+    }
   }
 
   // Strategy 3: Try 'form' parameter (nested structure)
@@ -472,14 +528,66 @@ export function extractFormFields(workflow: N8NWorkflow): N8NFormField[] | null 
     const formParam = parameters.form as Record<string, unknown> | undefined
     if (formParam) {
       formFields = formParam.fields as Array<Record<string, unknown>> | undefined
+      if (formFields && Array.isArray(formFields)) {
+        console.log('✅ Strategy 3 success: parameters.form.fields')
+      }
+    }
+  }
+
+  // Strategy 4: Try 'formFields.values' (N8N Form Trigger structure)
+  if (!formFields || !Array.isArray(formFields)) {
+    const formFieldsParam = parameters.formFields as Record<string, unknown> | undefined
+    if (formFieldsParam && typeof formFieldsParam === 'object' && 'values' in formFieldsParam) {
+      formFields = formFieldsParam.values as Array<Record<string, unknown>> | undefined
+      if (formFields && Array.isArray(formFields)) {
+        console.log('✅ Strategy 4 success: parameters.formFields.values')
+      }
+    }
+  }
+
+  // Strategy 5: Try 'options.formFields' (alternative nested structure)
+  if (!formFields || !Array.isArray(formFields)) {
+    const optionsParam = parameters.options as Record<string, unknown> | undefined
+    if (optionsParam && typeof optionsParam === 'object' && 'formFields' in optionsParam) {
+      formFields = optionsParam.formFields as Array<Record<string, unknown>> | undefined
+      if (formFields && Array.isArray(formFields)) {
+        console.log('✅ Strategy 5 success: parameters.options.formFields')
+      }
+    }
+  }
+
+  // Strategy 6: Try 'parameters.options.formFields.values' (deeply nested)
+  if (!formFields || !Array.isArray(formFields)) {
+    const optionsParam = parameters.options as Record<string, unknown> | undefined
+    if (optionsParam && typeof optionsParam === 'object') {
+      const formFieldsNested = optionsParam.formFields as Record<string, unknown> | undefined
+      if (formFieldsNested && typeof formFieldsNested === 'object' && 'values' in formFieldsNested) {
+        formFields = formFieldsNested.values as Array<Record<string, unknown>> | undefined
+        if (formFields && Array.isArray(formFields)) {
+          console.log('✅ Strategy 6 success: parameters.options.formFields.values')
+        }
+      }
     }
   }
 
   // If all strategies failed, return default generic form
   if (!formFields || !Array.isArray(formFields) || formFields.length === 0) {
-    console.debug('No form fields found in parameters, using default form')
+    console.warn('⚠️ Form fields extraction failed. Tried 6 strategies:', {
+      strategy1: 'parameters.formFields (array)',
+      strategy2: 'parameters.fields (array)',
+      strategy3: 'parameters.form.fields (array)',
+      strategy4: 'parameters.formFields.values (array)',
+      strategy5: 'parameters.options.formFields (array)',
+      strategy6: 'parameters.options.formFields.values (array)',
+      availableKeys: Object.keys(parameters),
+      parameterSample: JSON.stringify(parameters).substring(0, 200) + '...',
+      fallback: 'Using default generic form (1 message textarea)',
+      helpText: 'Check console for full parameters structure above'
+    })
     return getDefaultFormFields()
   }
+
+  console.log('✅ Form fields extracted successfully:', formFields.length, 'fields found')
 
   // Map N8N form fields to our format
   return formFields.map((field, index) => ({
