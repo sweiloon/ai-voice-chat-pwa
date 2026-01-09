@@ -16,6 +16,7 @@ export type MessageRecord = {
   role: 'user' | 'assistant' | 'system'
   content: string
   audioBlobId?: string
+  type?: 'text' | 'audio' | 'image'
   createdAt: number
 }
 

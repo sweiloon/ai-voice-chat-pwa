@@ -1,68 +1,116 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
+@layer base {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    /* Base Colors - Light Mode (Clean, Enterprise White/Gray) */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    /* Cosmic Theme - Dark Mode First */
+    --background: 240 20% 5%; /* #0a0a0f */
+    --foreground: 0 0% 98%;
+
+    --card: 240 24% 10%; /* #13131f */
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 24% 10%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 270 100% 60%; /* Neon Purple */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 20% 18%; /* Lighter dark */
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 20% 18%;
+    --muted-foreground: 240 10% 70%;
+
+    --accent: 190 100% 50%; /* Neon Blue */
+    --accent-foreground: 240 20% 5%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 20% 18%;
+    --input: 240 20% 18%;
+    --ring: 270 100% 60%;
+
+    --radius: 0.75rem;
+
+    /* Chat Specifics */
+    --chat-background: 210 40% 98%; /* Light gray background for chat area */
+    --chat-bubble-sent: 160 84% 39%; /* Primary color */
+    --chat-bubble-received: 0 0% 100%; /* White */
+    
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 215.4 16.3% 46.9%;
+    --sidebar-active: 160 84% 39%;
   }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+
+  .dark {
+    /* Same as root for now, as we are dark-first */
+    --background: 240 20% 5%;
+    --foreground: 0 0% 98%;
+    --card: 240 24% 10%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 24% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 270 100% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 20% 18%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 20% 18%;
+    --muted-foreground: 240 10% 70%;
+    --accent: 190 100% 50%;
+    --accent-foreground: 240 20% 5%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 20% 18%;
+    --input: 240 20% 18%;
+    --ring: 270 100% 60%;
+
+    /* Chat Specifics */
+    --chat-background: 222.2 84% 4.9%; /* Same as background or slightly lighter */
+    --chat-bubble-sent: 160 84% 39%;
+    --chat-bubble-received: 217.2 32.6% 17.5%; /* Dark gray */
+
+    /* Sidebar */
+    --sidebar-background: 217.2 32.6% 17.5%;
+    --sidebar-foreground: 215 20.2% 65.1%;
+    --sidebar-active: 160 84% 39%;
   }
 }
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/20 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/40;
+}
+

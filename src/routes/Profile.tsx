@@ -1,110 +1,79 @@
-import { User, Settings, Bell, Shield, HelpCircle, LogOut } from 'lucide-react'
+import { User, Mail, Shield, LogOut } from 'lucide-react'
+import { useAuthStore } from '@/store/auth'
+import { Button } from '@/components/ui/Button'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/Avatar'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 
-/**
- * Profile Route - User profile and account management (MVP Widget)
- *
- * Placeholder for future features:
- * - Account information
- * - Preferences
- * - Notifications
- * - Privacy & Security
- * - Help & Support
- */
 export const Profile = () => {
+  const { user, logout } = useAuthStore()
+
   return (
-    <div className="flex h-screen flex-col bg-background">
-      {/* Fixed Header */}
-      <header className="fixed top-0 left-0 right-0 z-40 border-b border-border/50 bg-card/80 backdrop-blur-sm">
-        <div className="flex h-14 md:h-16 items-center px-4 md:px-6 max-w-7xl mx-auto">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-0.5">
-              <div className="flex items-center justify-center w-8 h-8 md:w-9 md:h-9 rounded-lg bg-primary/10 text-primary">
-                <User size={16} className="md:w-[18px] md:h-[18px]" />
-              </div>
-              <h1 className="text-base md:text-lg font-bold text-foreground">
-                Profile
-              </h1>
-            </div>
-            <p className="text-[10px] md:text-xs text-muted-foreground ml-10 md:ml-11 hidden sm:block">
-              Manage your account and preferences
-            </p>
-          </div>
-        </div>
+    <div className="flex h-full flex-col bg-secondary/30">
+      {/* Header */}
+      <header className="flex items-center px-6 h-16 bg-background border-b sticky top-0 z-10">
+        <h1 className="text-xl font-bold">Profile</h1>
       </header>
 
-      {/* Scrollable Content */}
-      <main className="flex-1 overflow-y-auto bg-gradient-to-b from-background to-secondary/5 pt-[56px] md:pt-[64px] pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
-          {/* Profile Header */}
-          <div className="flex flex-col items-center gap-4 py-8 md:py-12 text-center">
-            <div className="rounded-full border-2 border-primary/30 p-8 md:p-10 bg-gradient-to-br from-primary/5 to-transparent">
-              <User size={48} className="md:w-16 md:h-16 text-primary" />
+      <ScrollArea className="flex-1">
+        <div className="max-w-2xl mx-auto p-6 space-y-8">
+          
+          {/* Profile Card */}
+          <div className="bg-card border rounded-xl p-6 flex flex-col items-center text-center space-y-4 shadow-sm">
+            <Avatar className="h-24 w-24 border-4 border-background shadow-lg">
+              <AvatarImage src={user?.avatarUrl || undefined} />
+              <AvatarFallback className="text-2xl">{user?.displayName?.[0] || 'U'}</AvatarFallback>
+            </Avatar>
+            <div>
+              <h2 className="text-2xl font-bold">{user?.displayName || 'Guest User'}</h2>
+              <p className="text-muted-foreground">{user?.email || 'Not signed in'}</p>
             </div>
+            <Button variant="outline" className="w-full max-w-xs">
+              Edit Profile
+            </Button>
+          </div>
 
-            <div className="space-y-2">
-              <h2 className="text-2xl md:text-3xl font-bold text-foreground">
-                Welcome Back
-              </h2>
-              <p className="text-sm md:text-base text-muted-foreground">
-                Your profile features are coming soon
-              </p>
+          {/* Account Details */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider px-1">Account Details</h3>
+            <div className="bg-card border rounded-xl overflow-hidden divide-y">
+              <div className="p-4 flex items-center gap-4">
+                <User className="text-muted-foreground" size={20} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Display Name</p>
+                  <p className="text-xs text-muted-foreground">{user?.displayName || '-'}</p>
+                </div>
+              </div>
+              <div className="p-4 flex items-center gap-4">
+                <Mail className="text-muted-foreground" size={20} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Email Address</p>
+                  <p className="text-xs text-muted-foreground">{user?.email || '-'}</p>
+                </div>
+              </div>
+              <div className="p-4 flex items-center gap-4">
+                <Shield className="text-muted-foreground" size={20} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Account Type</p>
+                  <p className="text-xs text-muted-foreground">{user?.isCreator ? 'Creator' : 'Standard User'}</p>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Feature Preview Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8 max-w-4xl mx-auto">
-            <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-4 md:p-6 hover:border-primary/30 transition-colors">
-              <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-lg bg-primary/10 text-primary mb-3">
-                <Settings size={20} className="md:w-6 md:h-6" />
-              </div>
-              <h3 className="font-semibold text-sm md:text-base mb-2">Account Settings</h3>
-              <p className="text-xs md:text-sm text-muted-foreground">
-                Manage your personal information and account details
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-4 md:p-6 hover:border-primary/30 transition-colors">
-              <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-lg bg-primary/10 text-primary mb-3">
-                <Bell size={20} className="md:w-6 md:h-6" />
-              </div>
-              <h3 className="font-semibold text-sm md:text-base mb-2">Notifications</h3>
-              <p className="text-xs md:text-sm text-muted-foreground">
-                Control how and when you receive notifications
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-4 md:p-6 hover:border-primary/30 transition-colors">
-              <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-lg bg-primary/10 text-primary mb-3">
-                <Shield size={20} className="md:w-6 md:h-6" />
-              </div>
-              <h3 className="font-semibold text-sm md:text-base mb-2">Privacy & Security</h3>
-              <p className="text-xs md:text-sm text-muted-foreground">
-                Manage your privacy settings and security preferences
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-4 md:p-6 hover:border-primary/30 transition-colors">
-              <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-lg bg-primary/10 text-primary mb-3">
-                <HelpCircle size={20} className="md:w-6 md:h-6" />
-              </div>
-              <h3 className="font-semibold text-sm md:text-base mb-2">Help & Support</h3>
-              <p className="text-xs md:text-sm text-muted-foreground">
-                Get help, view documentation, and contact support
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-4 md:p-6 hover:border-primary/30 transition-colors">
-              <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-lg bg-destructive/10 text-destructive mb-3">
-                <LogOut size={20} className="md:w-6 md:h-6" />
-              </div>
-              <h3 className="font-semibold text-sm md:text-base mb-2">Sign Out</h3>
-              <p className="text-xs md:text-sm text-muted-foreground">
-                Securely sign out of your account
-              </p>
-            </div>
+          {/* Danger Zone */}
+          <div className="pt-8">
+            <Button 
+              variant="destructive" 
+              className="w-full" 
+              onClick={() => logout()}
+            >
+              <LogOut className="mr-2" size={16} />
+              Sign Out
+            </Button>
           </div>
+
         </div>
-      </main>
+      </ScrollArea>
     </div>
   )
 }
